@@ -15,12 +15,12 @@ paru -S binance discord element-desktop enpass-bin filelight fsearch git github-
 paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji
 ```
 
-## Install KVM/QEMU
-```
-paru -S qemu-full virt-manager virt-viewer dnsmasq bridge-utils libguestfs ebtables vde2 openbsd-netcat -y
-```
-
 ## Fix VSCode Terminal
 ```
 terminal.integrated.fontFamily": "'Cascadia Code', JetBrainsMono Nerd Font Propo, CaskaydiaCove Nerd Font Mono, Maple Mono"
+```
+
+## Install KVM/QEMU
+```
+paru -S qemu-full virt-manager virt-viewer dnsmasq bridge-utils libguestfs ebtables vde2 openbsd-netcat -y
 ```
