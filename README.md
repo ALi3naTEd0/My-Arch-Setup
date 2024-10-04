@@ -7,7 +7,7 @@
 
 ## Install programs
 ```
-paru -S alarm-clock-applet discord element-desktop enpass-bin filelight fsearch git github-cli gnome-disk-utility gwenview hypnotix htop btop kid3 localsend mediainfo mkvtoolnix-gui nordvpn-bin notion-app-electron obsidian onlyoffice-bin plex-media-player plex-media-server-plexpass qbittorrent rclone rssguard rsync sox subtitleedit syncthing tauon-music-box telegram-desktop thunderbird tracktion-waveform uget unified-remote-server visual-studio-code-bin webapp-manager -y
+paru -S alarm-clock-applet discord element-desktop enpass-bin filelight fsearch git github-cli gnome-disk-utility gwenview hypnotix htop btop kid3 localsend mediainfo mkvtoolnix-gui net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin plex-media-player plex-media-server-plexpass qbittorrent rclone rssguard rsync sox subtitleedit syncthing tauon-music-box telegram-desktop thunderbird tracktion-waveform uget unified-remote-server visual-studio-code-bin webapp-manager -y
 ```
 
 ## Fonts
