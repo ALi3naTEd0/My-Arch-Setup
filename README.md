@@ -16,8 +16,8 @@ paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji
 ```
 
 ## Fix VSCode Terminal
-```
 [Fonts: Cascadia Code, Casscadia Mono](https://www.nerdfonts.com/font-downloads)
+```
 terminal.integrated.fontFamily": CaskaydiaCove Nerd Font Mono
 ```
 
