@@ -17,7 +17,8 @@ paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji
 
 ## Fix VSCode Terminal
 ```
-terminal.integrated.fontFamily": "'Cascadia Code', JetBrainsMono Nerd Font Propo, CaskaydiaCove Nerd Font Mono, Maple Mono"
+[Fonts: Cascadia Code, Casscadia Mono](https://www.nerdfonts.com/font-downloads)
+terminal.integrated.fontFamily": CaskaydiaCove Nerd Font Mono
 ```
 
 ## Install KVM/QEMU
