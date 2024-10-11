@@ -7,7 +7,7 @@
 
 ## Install programs
 ```
-paru -S alarm-clock-applet android-studio btop deemix-fix-gui-git discord element-desktop enpass-bin filelight firefox firefox-pwa flutter-bin fsearch git github-cli gnome-disk-utility gwenview hypnotix htop kdeconnect kid3 konsole linutil localsend mediainfo mkvtoolnix-gui nano net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin plex-media-player plex-media-server-plexpass qbittorrent rclone rssguard rsync sox subtitleedit syncthing tauon-music-box telegram-desktop thunderbird uget webapp-manager -y
+paru -S alarm-clock-applet android-studio btop deemix-fix-gui-git discord element-desktop enpass-bin filelight firefox firefox-pwa flutter-bin fsearch git github-cli gnome-disk-utility gwenview hypnotix htop kdeconnect kid3 konsole linutil localsend mediainfo mkvtoolnix-gui nano net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin plex-media-player plex-media-server-plexpass qbittorrent rclone rssguard rsync sox subtitleedit syncthing tauon-music-box telegram-desktop thunderbird uget visual-studio-code-bin webapp-manager -y
 ```
 
 ## Fonts
@@ -15,13 +15,13 @@ paru -S alarm-clock-applet android-studio btop deemix-fix-gui-git discord elemen
 paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji
 ```
 
-## Fix VSCode Terminal
-[Fonts: Cascadia Code, Casscadia Mono](https://www.nerdfonts.com/font-downloads)
-```
-terminal.integrated.fontFamily": CaskaydiaCove Nerd Font Mono
-```
-
 ## Install KVM/QEMU
 ```
 paru -S qemu-full virt-manager virt-viewer dnsmasq bridge-utils libguestfs ebtables vde2 openbsd-netcat -y
+```
+
+## Fix VSCode Terminal
+Fonts: [Cascadia Code, Cascadia Mono](https://www.nerdfonts.com/font-downloads)
+```
+terminal.integrated.fontFamily": CaskaydiaCove Nerd Font
 ```
