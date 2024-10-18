@@ -5,7 +5,7 @@
 
 ## Install programs
 ```
-paru -S alarm-clock-applet android-studio anydesk-bin appimagelauncher btop deemix-fix-gui-git discord element-desktop enpass-bin filelight firefox firefox-pwa flutter-bin fsearch git gnome-disk-utility gwenview hypnotix htop kdeconnect kate kid3 konsole linutil localsend mediainfo mkvtoolnix-gui nano neofetch net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin plex-media-player plex-media-server-plexpass python-pipx python-pypresence qbittorrent rclone rssguard rsync sox soulseekqt subtitleedit syncthing tauon-music-box telegram-desktop thunderbird uget visual-studio-code-bin webapp-manager -y
+paru -S alarm-clock-applet android-studio anydesk-bin appimagelauncher btop deemix-fix-gui-git discord element-desktop enpass-bin filelight firefox firefox-pwa flutter-bin fsearch git gnome-disk-utility gwenview hypnotix htop kdeconnect kate kid3 konsole linutil localsend mediainfo-gui mkvalidator mkvtoolnix-gui nano neofetch net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin plex-media-player plex-media-server-plexpass python-pipx python-pypresence qbittorrent rclone rssguard rsync sox soulseekqt subtitleedit syncthing tauon-music-box telegram-desktop thunderbird uget visual-studio-code-bin webapp-manager -y
 ```
 
 ## Fonts
