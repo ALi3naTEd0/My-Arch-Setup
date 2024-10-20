@@ -19,7 +19,6 @@ paru -S qemu-full virt-manager virt-viewer dnsmasq bridge-utils libguestfs ebtab
 ```
 
 ## Fix VSCode Terminal
-Fonts: [Cascadia Code, Cascadia Mono](https://www.nerdfonts.com/font-downloads)
 ```
 terminal.integrated.fontFamily": CaskaydiaCove Nerd Font
 ```
