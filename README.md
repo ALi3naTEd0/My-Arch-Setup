@@ -4,17 +4,17 @@
 ### **DE**: [Hyprdots](https://github.com/prasanthrangan/hyprdots)
 
 ## Install programs
-```
+```bash
 paru -S alarm-clock-applet android-studio anydesk-bin appimagelauncher btop deemix-fix-gui-git discord element-desktop enpass-bin filelight firefox firefox-pwa flutter-bin fsearch git gnome-disk-utility gparted gwenview hypnotix htop kdeconnect kate kid3 konsole linutil localsend mediainfo-gui mkvalidator mkvtoolnix-gui nano neofetch net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin partitionmamager plex-media-player plex-media-server-plexpass python-pipx python-pypresence qalculate-gtk qbittorrent rclone rssguard rsync sox soulseekqt subtitleedit syncthing tauon-music-box telegram-desktop thunderbird uget visual-studio-code-bin webapp-manager -y
 ```
 
 ## Fonts
-```
+```bash
 paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji
 ```
 
 ## Install KVM/QEMU
-```
+```bash
 paru -S qemu-full virt-manager virt-viewer dnsmasq bridge-utils libguestfs ebtables vde2 openbsd-netcat -y
 ```
 
