@@ -51,4 +51,4 @@ Configure "default" network
 - `sudo virsh net-autostart default`
 - `sudo systemctl restart libvirtd`
 - `sudo systemctl status libvirtd`
-`sudo virsh net-list --all`
+- `sudo virsh net-list --all`
