@@ -33,3 +33,24 @@ terminal.integrated.fontFamily": CaskaydiaCove Nerd Font
 - Edit `/boot/loader/entries/file.conf` = `options root=PARTUUID=779638dc-ccb2-48d0-8f7f-b246471896b9 zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs resume=UUID=78acba64-6959-4382-91ca-773199f00af3`
 - Regenerate mkinitcpio = `sudo mkinitcpio -P`
 - Test it's working: `systemctl hibernate`
+
+## Services
+`systemctl enable plexmediaserver.service`
+`systemctl start plexmediaserver.service`
+
+`systemctl enable syncthing@x.service`
+`systemctl start syncthing@x.service`
+
+`systemctl enable libvirtd.service`
+`systemctl enable libvirtd.socket`
+`systemctl start libvirtd.service`
+`systemctl start libvirtd.socket`
+
+Configure "default" network
+`sudo usermod -aG libvirt $(whoami)`
+`sudo virsh net-define /etc/libvirt/qemu/networks/default.xml`
+`sudo virsh net-start default`
+`sudo virsh net-autostart default`
+`sudo systemctl restart libvirtd`
+`sudo systemctl status libvirtd`
+`sudo virsh net-list --all`
