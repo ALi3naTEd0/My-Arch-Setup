@@ -15,7 +15,7 @@ paru -S alarm-clock-applet android-studio anydesk-bin appimagelauncher btop deem
 
 ## Install KVM/QEMU
 ```bash
-paru -S qemu-full virt-manager virt-viewer dnsmasq bridge-utils libguestfs ebtables vde2 openbsd-netcat -y
+paru -S qemu-full virt-manager virt-viewer dmidecode dnsmasq bridge-utils libguestfs ebtables vde2 openbsd-netcat -y
 ```
 
 ## Fix VSCode Terminal
