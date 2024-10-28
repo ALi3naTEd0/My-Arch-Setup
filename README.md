@@ -1,7 +1,7 @@
 # My Arch Linux Setup
 
 ### **OS**: [Arch](https://archlinux.org/)
-### **DE**: [Hyprdots](https://github.com/prasanthrangan/hyprdots)
+### **DE**: [HyDE](https://github.com/prasanthrangan/hyprdots)
 
 ## Fonts
 ```bash
