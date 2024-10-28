@@ -4,19 +4,13 @@
 ### **DE**: [HyDE](https://github.com/prasanthrangan/hyprdots)
 
 ## Fonts
-```bash
-paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji
-```
+``` paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji ```
 
 ## Install programs
-```bash
-paru -S alarm-clock-applet android-studio anydesk-bin appimagelauncher btop deemix-fix-gui-git discord element-desktop enpass-bin filelight firefox firefox-pwa flutter-bin freerdp fsearch git gnome-disk-utility gparted gwenview hypnotix htop kdeconnect kate kid3 konsole libvncserver linutil localsend mediainfo-gui mkvalidator mkvtoolnix-gui nano neofetch net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin partitionmanager plex-media-player plex-media-server-plexpass python-pipx python-pypresence qalculate-gtk qbittorrent remmina rclone rssguard rsync sox soulseekqt spice-gtk subtitleedit syncthing tauon-music-box telegram-desktop thunderbird uget visual-studio-code-bin webapp-manager -y
-```
+``` paru -S alarm-clock-applet android-studio anydesk-bin appimagelauncher btop deemix-fix-gui-git discord element-desktop enpass-bin filelight firefox firefox-pwa flutter-bin freerdp fsearch git gnome-disk-utility gparted gwenview hypnotix htop kdeconnect kate kid3 konsole libvncserver linutil localsend mediainfo-gui mkvalidator mkvtoolnix-gui nano neofetch net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin partitionmanager plex-media-player plex-media-server-plexpass python-pipx python-pypresence qalculate-gtk qbittorrent remmina rclone rssguard rsync sox soulseekqt spice-gtk subtitleedit syncthing tauon-music-box telegram-desktop thunderbird uget visual-studio-code-bin webapp-manager -y ```
 
 ## Install KVM/QEMU
-```bash
-paru -S qemu-full virt-manager virt-viewer dmidecode dnsmasq bridge-utils libguestfs ebtables vde2 openbsd-netcat -y
-```
+``` paru -S qemu-full virt-manager virt-viewer dmidecode dnsmasq bridge-utils libguestfs ebtables vde2 openbsd-netcat -y ```
 
 ## Fix VSCode Terminal
 ```
