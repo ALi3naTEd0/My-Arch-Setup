@@ -10,7 +10,7 @@ paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji
 
 ## Install programs
 ```
-paru -S alarm-clock-applet android-studio anydesk-bin appimagelauncher arrpc btop deemix-fix-gui-git discord element-desktop enpass-bin filelight firefox firefox-pwa flutter-bin freerdp fsearch git gnome-disk-utility gparted gwenview hypnotix htop kdeconnect kate kid3 konsole libvncserver linutil localsend mediainfo-gui mkvalidator mkvtoolnix-gui nano neofetch net-tools nordvpn-bin notion-app-electron obsidian onlyoffice-bin partitionmanager plex-media-player plex-media-server-plexpass python-pipx python-pypresence qalculate-gtk qbittorrent remmina rclone rssguard rsync sox soulseekqt spice-gtk subtitleedit syncthing tauon-music-box telegram-desktop thunderbird uget vesktop visual-studio-code-bin webapp-manager -y
+paru -S alarm-clock-applet android-studio anydesk-bin appimagelauncher arrpc btop deemix-gui discord enpass-bin flutter-bin freerdp fsearch git gnome-disk-utility gparted gwenview hypnotix htop kdeconnect kate kid3 konsole libvncserver linutil localsend mediainfo-gui mkvalidator mkvtoolnix-gui nano neofetch net-tools nordvpn-bin obsidian onlyoffice-bin partitionmanager plex-desktop plex-media-server-plexpass python-pipx python-pypresence qalculate-gtk qbittorrent remmina rclone rsync sox soulseekqt spice-gtk subtitleedit syncthing tauon-music-box telegram-desktop thunderbird visual-studio-code-bin webapp-manager yuki-iptv zen-browser-bin -y
 ```
 
 ## Install KVM/QEMU
