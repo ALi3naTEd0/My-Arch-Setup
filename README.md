@@ -5,7 +5,7 @@
 
 ## Fonts
 ```
-paru -S noto-fonts-cjk ttf-dejavu noto-fonts-emoji
+paru -S ttf-cascadia-code-nerd noto-fonts-cjk ttf-dejavu noto-fonts-emoji
 ```
 
 ## Install programs
