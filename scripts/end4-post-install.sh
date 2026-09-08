@@ -1,43 +1,43 @@
 #!/usr/bin/env bash
-# Ajustes post-instalación de end-4 (illogical-impulse), derivados de migrar
-# la Lenovo el 2026-08-29. Corregir DESPUÉS de `./setup install` y ANTES de
-# reiniciar la sesión. Idempotente: se puede correr varias veces.
+# Post-install tweaks for end-4 (illogical-impulse), derived from migrating
+# the Lenovo on 2026-08-29. Run AFTER `./setup install` and BEFORE restarting
+# the session. Idempotent: safe to run repeatedly.
 #
-# Revierte las cosas que end-4 pisa y que en este equipo se quieren distintas.
+# Reverts the things end-4 overwrites that these machines want differently.
 set -u
 
-KB_LAYOUT="${KB_LAYOUT:-es}"   # Titan usa "es"; la Lenovo usaba "latam"
+KB_LAYOUT="${KB_LAYOUT:-es}"   # Titan uses "es"; the laptops use "latam"
 C="$HOME/.config"
 
-echo "== 1. HYPRLAND_CONFIG: evitar que HyDE secuestre el arranque =="
-# HyDE lo inyecta desde DOS sitios: el hook de zsh y el de uwsm.
+echo "== 1. HYPRLAND_CONFIG: keep HyDE from hijacking startup =="
+# HyDE injects it from TWO places: the zsh hook and the uwsm one.
 if [ -d "$C/zsh/conf.d" ] && [ ! -f "$C/zsh/conf.d/99-end4.zsh" ]; then
     cat > "$C/zsh/conf.d/99-end4.zsh" <<'ZSH'
-# end-4: Hyprland debe leer ~/.config/hypr/hyprland.lua, no el hyde.lua de HyDE.
-# (HyDE lo define en conf.d/hyde/env.zsh vía ~/.local/lib/hyde/shell/activate)
-# Para volver a HyDE: borra este archivo.
+# end-4: Hyprland must read ~/.config/hypr/hyprland.lua, not HyDE's hyde.lua.
+# (HyDE sets it in conf.d/hyde/env.zsh via ~/.local/lib/hyde/shell/activate)
+# To go back to HyDE: delete this file.
 typeset -gx HYPRLAND_CONFIG="$HOME/.config/hypr/hyprland.lua"
 ZSH
-    echo "   [ok] creado zsh/conf.d/99-end4.zsh"
-else echo "   [skip] zsh override ya existe (o no hay conf.d)"; fi
+    echo "   [ok] created zsh/conf.d/99-end4.zsh"
+else echo "   [skip] zsh override already present (or no conf.d)"; fi
 
 if [ -d "$C/uwsm/env-hyprland.d" ] && [ ! -f "$C/uwsm/env-hyprland.d/99-end4.sh" ]; then
     cat > "$C/uwsm/env-hyprland.d/99-end4.sh" <<'SH'
 #!/usr/bin/env sh
-# end-4 bajo uwsm. Se carga después de 00-hyde.sh y redirige la config.
-# IMPORTANTE: conviene MANTENER uwsm — sin él graphical-session.target no se
-# activa y los servicios de usuario (p.ej. wayvnc) nunca arrancan.
+# end-4 under uwsm. Loads after 00-hyde.sh and redirects the config.
+# IMPORTANT: KEEP uwsm -- without it graphical-session.target never activates
+# and user services (wayvnc, hypr-rdp) never start.
 export HYPRLAND_CONFIG="$HOME/.config/hypr/hyprland.lua"
 SH
-    echo "   [ok] creado uwsm/env-hyprland.d/99-end4.sh"
-else echo "   [skip] uwsm override ya existe (o no hay uwsm)"; fi
+    echo "   [ok] created uwsm/env-hyprland.d/99-end4.sh"
+else echo "   [skip] uwsm override already present (or no uwsm)"; fi
 
-echo "== 2. Teclado ($KB_LAYOUT) =="
+echo "== 2. Keyboard ($KB_LAYOUT) =="
 if [ -f "$C/hypr/custom/general.lua" ] && ! grep -q 'kb_layout' "$C/hypr/custom/general.lua"; then
     cat >> "$C/hypr/custom/general.lua" <<LUA
 
--- Teclado local (end-4 trae "us" en hyprland/general.lua, archivo suyo que se
--- sobrescribe en cada update; aquí sí persiste).
+-- Local keyboard (end-4 ships "us" in hyprland/general.lua, its own file,
+-- overwritten on every update; this one persists).
 hl.config({
     input = {
         kb_layout = "$KB_LAYOUT",
@@ -45,103 +45,105 @@ hl.config({
 })
 LUA
     echo "   [ok] kb_layout = $KB_LAYOUT"
-else echo "   [skip] ya configurado (o falta custom/general.lua)"; fi
+else echo "   [skip] already set (or custom/general.lua missing)"; fi
 
-echo "== 3. Sin suspensión por inactividad =="
+echo "== 3. No idle dim/lock/suspend =="
 if [ -f "$C/hypr/custom/execs.lua" ] && ! grep -q 'pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
     cat >> "$C/hypr/custom/execs.lua" <<'LUA'
 
--- Sin dim/lock/suspend por inactividad (equivale al "modo-casa" de este equipo).
--- end-4 lanza hypridle en hyprland/execs.lua; aquí lo detenemos tras arrancar.
+-- No idle dim/lock/suspend (the "always-on desktop" mode).
+-- end-4 launches hypridle in hyprland/execs.lua; this stops it after startup.
+-- NOTE: this also removes the screen lock. Probably not what you want on a
+-- laptop, and the 15-minute suspend listener breaks remote access.
 hl.on("hyprland.start", function()
     hl.exec_cmd("sleep 3 && pkill -x hypridle")
 end)
 LUA
-    echo "   [ok] hypridle desactivado"
-else echo "   [skip] ya configurado"; fi
+    echo "   [ok] hypridle disabled"
+else echo "   [skip] already set"; fi
 
-echo "== 4. Atajo de la chuleta (SUPER+Slash es inalcanzable en es/latam) =="
+echo "== 4. Cheatsheet shortcut (SUPER+Slash is unreachable on es/latam) =="
 if [ -f "$C/hypr/custom/keybinds.lua" ] && ! grep -q 'cheatsheetToggle' "$C/hypr/custom/keybinds.lua"; then
     cat >> "$C/hypr/custom/keybinds.lua" <<'LUA'
 
--- Chuleta de atajos en SUPER+H.
--- SUPER+Slash (nativo de end-4) es inalcanzable en es/latam: "/" requiere
--- Shift. Se usa hl.dsp.global igual que los binds nativos, para que el panel
--- reciba foco de teclado y Esc lo cierre.
+-- Shortcut cheatsheet on SUPER+H.
+-- SUPER+Slash (end-4's own) is unreachable on es/latam: "/" needs Shift.
+-- Uses hl.dsp.global like the native binds so the panel takes keyboard focus
+-- and Esc closes it.
 hl.bind("SUPER + H", hl.dsp.global("quickshell:cheatsheetToggle"),
-    { description = "Shell: Toggle cheatsheet (chuleta)" })
+    { description = "Shell: Toggle cheatsheet" })
 LUA
-    echo "   [ok] SUPER+H para la chuleta"
-else echo "   [skip] ya configurado"; fi
+    echo "   [ok] SUPER+H opens the cheatsheet"
+else echo "   [skip] already set"; fi
 
-echo "== 5. kitty: no forzar fish (end-4 lo impone y pierdes el historial) =="
-# 'shell .' = el shell de /etc/passwd. Se prefiere sobre poner "zsh" a pelo:
-# en un equipo sin zsh instalado (p.ej. un Arch limpio sin HyDE) kitty no
-# abriria ninguna terminal. Asi sigue al usuario si algun dia haces chsh.
+echo "== 5. kitty: do not force fish (end-4 imposes it and you lose history) =="
+# 'shell .' = the shell from /etc/passwd. Preferred over a bare "zsh":
+# on a machine without zsh installed (a clean Arch with no HyDE) kitty would
+# fail to open any terminal. This way it follows the user after a chsh.
 if [ -f "$C/kitty/kitty.conf" ] && grep -qE '^shell (fish|zsh)$' "$C/kitty/kitty.conf"; then
     cp "$C/kitty/kitty.conf" "$C/kitty/kitty.conf.end4-bak"
     sed -i -E 's/^shell (fish|zsh)$/shell ./' "$C/kitty/kitty.conf"
-    echo "   [ok] kitty -> shell de login ($(getent passwd "$USER" | cut -d: -f7)); respaldo en kitty.conf.end4-bak"
-else echo "   [skip] kitty ya usa el shell de login (o no está configurado)"; fi
+    echo "   [ok] kitty -> login shell ($(getent passwd "$USER" | cut -d: -f7)); backup in kitty.conf.end4-bak"
+else echo "   [skip] kitty already uses the login shell (or is not configured)"; fi
 
 QS="$C/quickshell/ii"
 
-echo "== 6. Notificaciones emergentes abiertas (no colapsadas a una línea) =="
+echo "== 6. Notification popups expanded (not collapsed to one line) =="
 NG="$QS/modules/common/widgets/NotificationGroup.qml"
 if [ -f "$NG" ] && ! grep -q 'expanded: popup' "$NG"; then
-    sed -i 's/^\( *\)property bool expanded: false$/\1property bool expanded: popup \/\/ Popups nacen abiertas; el centro de notificaciones sigue colapsado/' "$NG"
+    sed -i 's/^\( *\)property bool expanded: false$/\1property bool expanded: popup \/\/ Popups start expanded; the notification centre stays collapsed/' "$NG"
     grep -q 'expanded: popup' "$NG" \
-        && echo "   [ok] popups abiertas (el centro sigue compacto)" \
-        || echo "   [FALLO] no se encontró 'property bool expanded: false' — revisar a mano"
-else echo "   [skip] ya aplicado (o falta NotificationGroup.qml)"; fi
+        && echo "   [ok] popups expanded (the centre stays compact)" \
+        || echo "   [FAIL] 'property bool expanded: false' not found -- check by hand"
+else echo "   [skip] already applied (or NotificationGroup.qml missing)"; fi
 
-echo "== 7. SUPER+A abre el lanzador (SUPER solo no viaja por VNC) =="
+echo "== 7. SUPER+A opens the launcher (a bare SUPER tap does not travel over VNC) =="
 KB="$C/hypr/hyprland/keybinds.lua"
-if [ -f "$KB" ] && ! grep -q 'Toggle search (lanzador)' "$KB"; then
-    sed -i 's|^hl.bind("SUPER + A", hl.dsp.global("quickshell:sidebarLeftToggle").*$|-- SUPER+A abre la busqueda: pulsar SUPER solo (SUPER+SUPER_L) no se transmite\n-- por VNC. La barra lateral sigue en SUPER+B y SUPER+O, que hacian lo mismo.\nhl.bind("SUPER + A", hl.dsp.global("quickshell:searchToggle"), { description = "Shell: Toggle search (lanzador)" })|' "$KB"
-    grep -q 'Toggle search (lanzador)' "$KB" \
-        && echo "   [ok] SUPER+A = lanzador (barra lateral queda en SUPER+B / SUPER+O)" \
-        || echo "   [FALLO] no se encontró el bind original — revisar a mano"
-else echo "   [skip] ya aplicado"; fi
+if [ -f "$KB" ] && ! grep -q 'SUPER + A", hl.dsp.global("quickshell:searchToggle"' "$KB"; then
+    sed -i 's|^hl.bind("SUPER + A", hl.dsp.global("quickshell:sidebarLeftToggle").*$|-- SUPER+A opens search: tapping SUPER alone (SUPER+SUPER_L) is not transmitted\n-- over VNC. The left sidebar stays on SUPER+B and SUPER+O, which did the same.\nhl.bind("SUPER + A", hl.dsp.global("quickshell:searchToggle"), { description = "Shell: Toggle search" })|' "$KB"
+    grep -q 'SUPER + A", hl.dsp.global("quickshell:searchToggle"' "$KB" \
+        && echo "   [ok] SUPER+A = launcher (sidebar remains on SUPER+B / SUPER+O)" \
+        || echo "   [FAIL] original bind not found -- check by hand"
+else echo "   [skip] already applied"; fi
 
-echo "== 8. Colores de kitty al estilo wallbash (4 tonos del wallpaper) =="
-# Copias propias del extractor y la plantilla: sin esto se depende de que HyDE
-# siga instalado. Se toman de HyDE solo si aún no existen las copias.
+echo "== 8. kitty colors, wallbash style (4 tones from the wallpaper) =="
+# Vendored copies of the extractor and template: without these you depend on
+# HyDE staying installed. Taken from HyDE only if the copies don't exist yet.
 mkdir -p "$HOME/.local/lib/wallbash"
 for pair in "wallbash.sh:$HOME/.local/lib/hyde/wallbash.sh" \
             "kitty.dcol:$HOME/HyDE/Configs/.local/share/wallbash/theme/kitty.dcol"; do
     dst="$HOME/.local/lib/wallbash/${pair%%:*}"; src="${pair#*:}"
-    if [ ! -f "$dst" ] && [ -f "$src" ]; then cp "$src" "$dst"; echo "   [ok] copiado $(basename "$dst") desde HyDE"; fi
+    if [ ! -f "$dst" ] && [ -f "$src" ]; then cp "$src" "$dst"; echo "   [ok] copied $(basename "$dst") from HyDE"; fi
 done
 [ -f "$HOME/.local/lib/wallbash/wallbash.sh" ] && chmod +x "$HOME/.local/lib/wallbash/wallbash.sh"
 
-# a) include en kitty.conf, DESPUES del de end-4 para ganarle.
-#    Sin comentario al final: kitty se traga el resto de la línea como nombre.
+# a) include in kitty.conf, AFTER end-4's so it wins.
+#    No trailing comment: kitty swallows the rest of the line as the filename.
 if [ -f "$C/kitty/kitty.conf" ] && ! grep -q 'wallbash-theme.conf' "$C/kitty/kitty.conf"; then
-    sed -i '/user\/generated\/terminal\/kitty-theme.conf/a # wallbash: va DESPUES del de end-4 para ganarle. Sin comentario al final:\n# kitty toma el resto de la linea como parte del nombre del archivo.\ninclude wallbash-theme.conf' "$C/kitty/kitty.conf"
-    echo "   [ok] include añadido a kitty.conf"
-else echo "   [skip] include ya presente"; fi
+    sed -i '/user\/generated\/terminal\/kitty-theme.conf/a # wallbash: goes AFTER end-4\x27s so it wins. No trailing comment:\n# kitty takes the rest of the line as part of the filename.\ninclude wallbash-theme.conf' "$C/kitty/kitty.conf"
+    echo "   [ok] include added to kitty.conf"
+else echo "   [skip] include already present"; fi
 
-# b) engancharlo al cambio de wallpaper
+# b) hook it to the wallpaper change
 AC="$QS/scripts/colors/applycolor.sh"
 if [ -f "$AC" ] && ! grep -q 'wallbash-kitty' "$AC"; then
     cat >> "$AC" <<'EOF'
 
-# Paleta de kitty al estilo wallbash (4 colores dominantes del wallpaper en vez
-# de una paleta fija rotada hacia un solo acento). Se ejecuta al final para que
-# su include gane. Si el script no existe, no pasa nada.
+# kitty palette, wallbash style (4 dominant colors from the wallpaper instead
+# of a fixed palette rotated toward one accent). Runs last so its include wins.
+# If the script is missing, nothing happens.
 if [ -x "$HOME/.local/bin/wallbash-kitty.sh" ]; then
   "$HOME/.local/bin/wallbash-kitty.sh" >/dev/null 2>&1 &
 fi
 EOF
-    echo "   [ok] hook añadido a applycolor.sh"
-else echo "   [skip] hook ya presente"; fi
+    echo "   [ok] hook added to applycolor.sh"
+else echo "   [skip] hook already present"; fi
 
 if [ ! -x "$HOME/.local/bin/wallbash-kitty.sh" ]; then
-    echo "   [AVISO] falta ~/.local/bin/wallbash-kitty.sh — sin él kitty usa la paleta de end-4"
+    echo "   [WARN] ~/.local/bin/wallbash-kitty.sh missing -- kitty will use end-4's palette"
 fi
 
-echo "== 9. Indicador de actualizaciones en la barra (la familia ii no trae) =="
+echo "== 9. Updates indicator in the bar (the ii panel family ships none) =="
 UI="$QS/modules/ii/bar/UpdatesIndicator.qml"
 if [ -d "$QS/modules/ii/bar" ] && [ ! -f "$UI" ]; then
     cat > "$UI" <<'QML'
@@ -153,16 +155,16 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 
-// Indicador de actualizaciones pendientes para la familia de paneles `ii`.
-// La familia `waffle` ya tiene su UpdatesButton; el servicio Updates es
-// compartido, asi que aqui solo hace falta la presentacion.
+// Pending-updates indicator for the `ii` panel family.
+// The `waffle` family already has its UpdatesButton; the Updates service is
+// shared, so only the presentation is needed here.
 Item {
     id: root
 
     property color color: Appearance.colors.colOnLayer1
-    // Visible con cualquier actualizacion pendiente. waffle solo lo muestra al
-    // pasar adviseUpdateThreshold (75): no te enteras hasta llevar semanas sin
-    // actualizar. Los umbrales siguen usandose para el color.
+    // Visible with any pending update. waffle only shows it past
+    // adviseUpdateThreshold (75): you don't find out until you've gone weeks
+    // without updating. The thresholds are still used for the color.
     readonly property bool shouldShow: Updates.available && Updates.count > 0
     readonly property color effectiveColor: Updates.updateStronglyAdvised ? Appearance.colors.colOnSecondaryContainer : root.color
 
@@ -187,8 +189,8 @@ Item {
         }
     }
 
-    // Tras lanzar la actualizacion el contador queda obsoleto hasta el siguiente
-    // checkInterval (120 min). Se re-consulta para que el icono desaparezca solo.
+    // After launching the update the counter is stale until the next
+    // checkInterval. Re-query so the icon disappears on its own.
     Timer {
         id: recheckTimer
         interval: 30000
@@ -207,25 +209,25 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: mouse => {
             if (mouse.button === Qt.RightButton) {
-                Updates.refresh(); // clic derecho: comprobar ahora
+                Updates.refresh(); // right click: check now
                 return;
             }
             Quickshell.execDetached(["bash", "-c", Config.options.apps.update]);
-            recheckTimer.remaining = 20; // ~10 min de re-comprobaciones
+            recheckTimer.remaining = 20; // ~10 min of re-checks
             recheckTimer.restart();
         }
     }
 }
 QML
-    echo "   [ok] UpdatesIndicator.qml creado"
-else echo "   [skip] ya existe (o falta modules/ii/bar)"; fi
+    echo "   [ok] UpdatesIndicator.qml created"
+else echo "   [skip] already exists (or modules/ii/bar missing)"; fi
 
-# Insertarlo en la fila de indicadores de la barra
+# Insert it into the bar indicator row
 python3 - "$QS" <<'PY'
 import os, sys
 p = os.path.join(sys.argv[1], "modules/ii/bar/BarContent.qml")
 if not os.path.isfile(p):
-    print("   [skip] falta BarContent.qml"); raise SystemExit
+    print("   [skip] BarContent.qml missing"); raise SystemExit
 s = open(p).read()
 old = """                    HyprlandXkbIndicator {
                         Layout.alignment: Qt.AlignVCenter
@@ -248,57 +250,58 @@ new = """                    Revealer {
                     }
 """ + old
 if "UpdatesIndicator" in s:
-    print("   [skip] ya insertado en BarContent.qml")
+    print("   [skip] already inserted into BarContent.qml")
 elif old not in s:
-    print("   [FALLO] patron no encontrado en BarContent.qml - revisar a mano")
+    print("   [FAIL] pattern not found in BarContent.qml - check by hand")
 else:
     open(p, "w").write(s.replace(old, new, 1))
-    print("   [ok] insertado en BarContent.qml")
+    print("   [ok] inserted into BarContent.qml")
 PY
 
-echo "== 10. El contador de updates ignora el AUR =="
+echo "== 10. The updates counter ignores the AUR =="
 python3 - "$QS" <<'PY'
 import os, shutil, sys
 p = os.path.join(sys.argv[1], "services/Updates.qml")
 if not os.path.isfile(p):
-    print("   [skip] falta Updates.qml"); raise SystemExit
+    print("   [skip] Updates.qml missing"); raise SystemExit
 s = open(p).read()
 old = 'command: ["bash", "-c", "checkupdates | wc -l"]'
 new = 'command: ["bash", "-c", "{ checkupdates; yay -Qua 2>/dev/null; } | wc -l"]'
 if new in s:
-    print("   [skip] ya cuenta el AUR")
+    print("   [skip] already counts the AUR")
 elif old not in s:
-    print("   [FALLO] patron no encontrado - revisar a mano")
+    print("   [FAIL] pattern not found - check by hand")
 else:
     shutil.copy(p, p + ".bak-aur")
     open(p, "w").write(s.replace(old, new, 1))
-    print("   [ok] el contador suma repos + AUR")
+    print("   [ok] counter now sums repos + AUR")
 PY
-command -v yay >/dev/null || echo "   [AVISO] yay no esta instalado; el conteo AUR devolvera 0"
+command -v yay >/dev/null || echo "   [WARN] yay is not installed; the AUR count will return 0"
 
-echo "== 11. Prompt: usar el de end-4, no el de HyDE =="
-# HyDE sourcea ~/.config/zsh/prompt.zsh y respeta lo que devuelva: con 'return 1'
-# cede el turno a su propio prompt. Comentandolo, manda este archivo.
-# OJO: la linea de STARSHIP_CONFIG se deja comentada a proposito — apunta al
-# toml de HyDE y volveria a secuestrar el prompt.
+echo "== 11. Prompt: use end-4's, not HyDE's =="
+# HyDE sources ~/.config/zsh/prompt.zsh and honours what it returns: with
+# 'return 1' it hands the turn to its own prompt. Commenting it out lets this
+# file win.
+# NOTE: the STARSHIP_CONFIG line is left commented on purpose -- it points at
+# HyDE's toml and would hijack the prompt again.
 P="$C/zsh/prompt.zsh"
 if [ -f "$P" ] && grep -q '^return 1' "$P"; then
     cp "$P" "$P.bak"
-    sed -i 's|^return 1 # TODO|# return 1 # DESACTIVADO para usar el prompt de end-4 # TODO|' "$P"
+    sed -i 's|^return 1 # TODO|# return 1 # DISABLED so end-4's prompt is used # TODO|' "$P"
     sed -i 's|^# eval "$(starship init zsh)"|eval "$(starship init zsh)"|' "$P"
-    echo "   [ok] prompt de end-4 activado (respaldo en prompt.zsh.bak)"
-else echo "   [skip] ya aplicado (o falta prompt.zsh)"; fi
+    echo "   [ok] end-4 prompt enabled (backup in prompt.zsh.bak)"
+else echo "   [skip] already applied (or prompt.zsh missing)"; fi
 
-echo "== 12. .zshrc en maquinas sin HyDE =="
-# HyDE trae su propia cadena de arranque de zsh. En un Arch limpio no hay nada:
-# zsh arranca con el prompt pelon de serie.
+echo "== 12. .zshrc on machines without HyDE =="
+# HyDE ships its own zsh startup chain. On a clean Arch there is nothing:
+# zsh starts with the bare stock prompt.
 if [ -f "$HOME/.zshrc" ] || [ -f "$C/zsh/.zshrc" ]; then
-    echo "   [skip] ya existe un .zshrc"
+    echo "   [skip] a .zshrc already exists"
 elif ! command -v zsh >/dev/null; then
-    echo "   [skip] zsh no esta instalado"
+    echo "   [skip] zsh is not installed"
 else
     cat > "$HOME/.zshrc" <<'ZRC'
-# Generado por end4-post-install.sh (maquina sin HyDE).
+# Generated by end4-post-install.sh (machine without HyDE).
 HISTFILE=~/.local/state/zsh/history
 HISTSIZE=50000
 SAVEHIST=50000
@@ -321,13 +324,14 @@ bindkey '^[[H' beginning-of-line
 bindkey '^[[F' end-of-line
 bindkey '^[[3~' delete-char
 
-# Piezas de end-4, una por una. auto-Hypr.sh queda FUERA: hace
-# 'exec start-hyprland' si entras por tty1 y con SDDM lanza una segunda sesion.
+# end-4 pieces, one by one. auto-Hypr.sh is LEFT OUT: it runs
+# 'exec start-hyprland' if you log in on tty1, which under SDDM starts a
+# second session on top of the one you already have.
 [ -f ~/.config/zshrc.d/dots-hyprland.zsh ] && source ~/.config/zshrc.d/dots-hyprland.zsh
 [ -f ~/.config/zshrc.d/shortcuts.zsh ] && source ~/.config/zshrc.d/shortcuts.zsh
 
-# starship lee ~/.config/starship.toml, que es el de end-4. No se define
-# STARSHIP_CONFIG a proposito: apuntarlo a otro lado secuestra el prompt.
+# starship reads ~/.config/starship.toml, which is end-4's. STARSHIP_CONFIG is
+# deliberately left unset: pointing it elsewhere hijacks the prompt.
 command -v starship >/dev/null && eval "$(starship init zsh)"
 
 [ -f /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ] && \
@@ -335,56 +339,56 @@ command -v starship >/dev/null && eval "$(starship init zsh)"
 [ -f /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && \
     source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 ZRC
-    echo "   [ok] ~/.zshrc creado"
+    echo "   [ok] ~/.zshrc created"
 fi
 
-echo "== 13. Navegador: Zen en vez de Chrome =="
+echo "== 13. Browser: Zen instead of Chrome =="
 V="$C/hypr/custom/variables.lua"
 if [ -f "$V" ] && grep -q '^browser' "$V"; then
-    echo "   [skip] custom/variables.lua ya define browser"
+    echo "   [skip] custom/variables.lua already defines browser"
 elif [ -d "$C/hypr/custom" ]; then
     cat >> "$V" <<'LUA'
 
--- Navegador: Zen en vez de Chrome (end-4 prioriza google-chrome-stable en
--- hyprland/variables.lua, que es archivo suyo y se sobrescribe en updates).
+-- Browser: Zen instead of Chrome (end-4 prioritises google-chrome-stable in
+-- hyprland/variables.lua, its own file, overwritten on updates).
 browser = "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'zen-browser' 'google-chrome-stable' 'firefox' 'brave' 'chromium'"
 LUA
     echo "   [ok] SUPER+W -> zen-browser"
-else echo "   [skip] falta hypr/custom"; fi
+else echo "   [skip] hypr/custom missing"; fi
 
-# $BROWSER para herramientas de linea de comandos. uwsm NO lee directorios .d por
-# su cuenta: lo habilita un bucle dentro de env-hyprland, que en maquinas con
-# HyDE creo el. Sin HyDE hay que crearlo.
+# $BROWSER for command-line tools. uwsm does NOT read .d directories on its
+# own: a loop inside env-hyprland enables them, and on HyDE machines HyDE
+# created that file. Without HyDE it has to be created here.
 mkdir -p "$C/uwsm/env-hyprland.d"
 if [ ! -f "$C/uwsm/env-hyprland" ]; then
     cat > "$C/uwsm/env-hyprland" <<'EOF'
-# Sourceado por uwsm. Este bucle es lo que habilita el directorio .d.
+# Sourced by uwsm. This loop is what enables the .d directory.
 for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/uwsm/env-hyprland.d/*.sh; do
   [ -r "$f" ] && source "$f"
 done
 EOF
-    echo "   [ok] creado uwsm/env-hyprland con el bucle .d"
+    echo "   [ok] created uwsm/env-hyprland with the .d loop"
 fi
 if [ ! -f "$C/uwsm/env-hyprland.d/70-browser.sh" ]; then
-    printf '#!/usr/bin/env sh\n# Navegador para CLI (git web--browse, python webbrowser). Las apps graficas\n# usan mimeapps.list.\nexport BROWSER=zen-browser\n' > "$C/uwsm/env-hyprland.d/70-browser.sh"
+    printf '#!/usr/bin/env sh\n# Browser for CLI tools (git web--browse, python webbrowser). GUI apps use\n# mimeapps.list.\nexport BROWSER=zen-browser\n' > "$C/uwsm/env-hyprland.d/70-browser.sh"
     echo "   [ok] BROWSER=zen-browser"
-else echo "   [skip] 70-browser.sh ya existe"; fi
+else echo "   [skip] 70-browser.sh already exists"; fi
 
-echo "== 14. Comando de actualizar e intervalo (config.json) =="
+echo "== 14. Update command and check interval (config.json) =="
 python3 - <<'PY'
 import json, os, shutil
 p = os.path.expanduser("~/.config/illogical-impulse/config.json")
 if not os.path.isfile(p):
-    print("   [skip] falta config.json"); raise SystemExit
+    print("   [skip] config.json missing"); raise SystemExit
 d = json.load(open(p))
 cmd = ("kitty zsh -ic 'yay -Syu; echo; echo \"── Update finished. "
        "Press Enter to close ──\"; read'")
 changed = []
-# El de serie es `pkexec pacman -Syu` dentro de fish y NO funciona: pkexec no
-# propaga la terminal a un comando interactivo. Ademas ignora el AUR.
+# The stock one is `pkexec pacman -Syu` inside fish and does NOT work: pkexec
+# does not pass a terminal to an interactive command. It also ignores the AUR.
 if d.get("apps", {}).get("update") != cmd:
     d.setdefault("apps", {})["update"] = cmd; changed.append("apps.update")
-# 120 min deja el contador tan obsoleto que parece roto.
+# 120 min leaves the counter so stale it looks broken.
 if d.get("updates", {}).get("checkInterval") != 30:
     d.setdefault("updates", {})["checkInterval"] = 30; changed.append("checkInterval")
 if changed:
@@ -392,30 +396,31 @@ if changed:
     json.dump(d, open(p, "w"), indent=2)
     print("   [ok] " + ", ".join(changed))
 else:
-    print("   [skip] ya configurado")
+    print("   [skip] already set")
 PY
 
-echo "== 15. Limite de concurrencia del generador de miniaturas =="
-# EL MAS IMPORTANTE. end-4 lanza un `magick` por archivo sin tope; con cientos de
-# wallpapers eso agota la RAM, el OOM killer mata `qs` (oom_score_adj=200) y cae
-# la sesion entera en bucle. Paso el 2026-09-07 en la HP: 5 logins y reinicio.
+echo "== 15. Concurrency limit for the thumbnail generator =="
+# THE IMPORTANT ONE. end-4 spawns one `magick` per file with no cap; with a few
+# hundred wallpapers that exhausts RAM, the OOM killer takes out `qs`
+# (oom_score_adj=200) and the whole session falls in a loop. Happened on the HP
+# on 2026-09-07: five logins and a spontaneous reboot.
 python3 - <<'PY'
 import os, shutil
 p = os.path.expanduser(
     "~/.config/quickshell/ii/scripts/thumbnails/generate-thumbnails-magick.sh")
 if not os.path.isfile(p):
-    print("   [skip] falta el script"); raise SystemExit
+    print("   [skip] script missing"); raise SystemExit
 s = open(p).read()
 if "MAGICK_MEMORY_LIMIT" in s:
-    print("   [skip] ya parcheado"); raise SystemExit
+    print("   [skip] already patched"); raise SystemExit
 old = """        for f in "$TARGET"/*; do
             [ -f "$f" ] || continue
             generate_thumbnail "$f" &
         done
         wait"""
-new = """        # Un trabajo por nucleo. Sin tope, N wallpapers = N procesos `magick`, y
-        # como ImageMagick se autoconfigura para poder usar TODA la RAM, el OOM
-        # killer se lleva a quickshell y con el la sesion entera.
+new = """        # One job per core. With no cap, N wallpapers = N `magick` processes,
+        # and since ImageMagick configures itself to be allowed ALL of RAM, the
+        # OOM killer takes quickshell down and the session with it.
         export MAGICK_MEMORY_LIMIT="${MAGICK_MEMORY_LIMIT:-256MiB}"
         export MAGICK_MAP_LIMIT="${MAGICK_MAP_LIMIT:-512MiB}"
         jobs_max="$(nproc 2>/dev/null || echo 4)"
@@ -428,18 +433,18 @@ new = """        # Un trabajo por nucleo. Sin tope, N wallpapers = N procesos `m
         done
         wait"""
 if old not in s:
-    print("   [FALLO] patron no encontrado - revisar a mano")
+    print("   [FAIL] pattern not found - check by hand")
 else:
     shutil.copy(p, p + ".bak-oom")
     open(p, "w").write(s.replace(old, new, 1))
-    print("   [ok] concurrencia acotada a nproc (respaldo .bak-oom)")
+    print("   [ok] concurrency capped at nproc (backup .bak-oom)")
 PY
 
 echo
-echo "== Recordatorios =="
-echo "  · Los binds de custom/keybinds.lua SOLO se cargan al ARRANCAR Hyprland."
-echo "    'hyprctl reload' no los toma: hay que reiniciar la sesión."
-echo "  · Mantén la sesión 'hyprland-uwsm' en SDDM (no la simple)."
-echo "  · Limpia ~/.cache/yay después de instalar: la compilación deja ~75 GB."
-echo "  · Prompt de 2 líneas: se ajusta en ~/.config/starship.toml si molesta."
-echo "Listo."
+echo "== Reminders =="
+echo "  - Binds in custom/keybinds.lua are ONLY loaded when Hyprland STARTS."
+echo "    'hyprctl reload' does not pick them up: restart the session."
+echo "  - Keep the 'hyprland-uwsm' session in SDDM (not the plain one)."
+echo "  - Clean ~/.cache/yay after installing: the build leaves tens of GB."
+echo "  - Two-line prompt: adjust in ~/.config/starship.toml if it bothers you."
+echo "Done."
