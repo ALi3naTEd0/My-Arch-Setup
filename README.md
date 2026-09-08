@@ -39,6 +39,7 @@ network. See [remote access](docs/03-remote-access.md).
 3. [Remote access](docs/03-remote-access.md): SSH, VNC, RDP, Tailscale
 4. [Swap and hibernation](docs/04-swap-hibernate.md)
 5. [KVM/QEMU](docs/05-kvm-qemu.md) (optional)
+6. [Bar widgets](docs/07-bar-widgets.md): updates and AI agent usage
 
 And when something breaks: [troubleshooting](docs/06-troubleshooting.md), which
 collects the real failures of these three machines — not the causes that looked
@@ -50,9 +51,10 @@ obvious at first.
 
 | Script | What it does |
 |---|---|
-| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 15 tweaks that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
+| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 16 tweaks that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
 | [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | kitty palette derived from the wallpaper via k-means (4 dominant colors), instead of end-4's single-accent rotation. |
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
+| [`agent-usage-claude`](scripts/agent-usage-claude), [`agent-usage-codex`](scripts/agent-usage-codex) | Print one JSON usage record per AI coding agent. Vendored from Omarchy (MIT); feed the [bar widget](docs/07-bar-widgets.md). |
 
 ```bash
 # After every end-4 `./setup install`:

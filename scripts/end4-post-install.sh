@@ -485,6 +485,60 @@ else:
     print("   [ok] concurrency capped at nproc (backup .bak-oom)")
 PY
 
+echo "== 16. AI agent usage indicator =="
+# Collectors live in ~/.local/bin/agent-usage-* and are vendored from Omarchy
+# (MIT). The QML side is ours and follows the UpdatesIndicator pattern, so
+# `./setup install` wipes it like everything else under quickshell/ii.
+AU="$QS/services/AgentUsage.qml"
+AI_IND="$QS/modules/ii/bar/AgentUsageIndicator.qml"
+if [ ! -x "$HOME/.local/bin/agent-usage-claude" ] && [ ! -x "$HOME/.local/bin/agent-usage-codex" ]; then
+    echo "   [skip] no collectors in ~/.local/bin/agent-usage-*"
+elif [ -f "$AU" ] && [ -f "$AI_IND" ] && grep -q 'AgentUsageIndicator' "$QS/modules/ii/bar/BarContent.qml" 2>/dev/null; then
+    echo "   [skip] already installed"
+else
+    echo "   [AVISO] falta reinstalar los QML: copialos de otra maquina o del repo"
+    echo "           services/AgentUsage.qml, modules/ii/bar/AgentUsage{Indicator,Popup}.qml"
+fi
+
+# Insert into the bar indicator row, right after the updates indicator.
+python3 - "$QS" <<'PYEOF'
+import os, sys
+p = os.path.join(sys.argv[1], "modules/ii/bar/BarContent.qml")
+if not os.path.isfile(p):
+    print("   [skip] BarContent.qml missing"); raise SystemExit
+s = open(p).read()
+if "AgentUsageIndicator" in s:
+    print("   [skip] already in BarContent.qml"); raise SystemExit
+if not os.path.isfile(os.path.join(sys.argv[1], "modules/ii/bar/AgentUsageIndicator.qml")):
+    print("   [skip] AgentUsageIndicator.qml not present"); raise SystemExit
+anchor = """                        UpdatesIndicator {
+                            id: updatesIndicator
+                            color: rightSidebarButton.colText
+                        }
+                    }
+"""
+block = anchor + """                    Revealer {
+                        reveal: agentUsageIndicator.shouldShow
+                        Layout.fillHeight: true
+                        Layout.rightMargin: reveal ? indicatorsRowLayout.realSpacing : 0
+                        implicitHeight: reveal ? agentUsageIndicator.implicitHeight : 0
+                        implicitWidth: reveal ? agentUsageIndicator.implicitWidth : 0
+                        Behavior on Layout.rightMargin {
+                            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                        }
+                        AgentUsageIndicator {
+                            id: agentUsageIndicator
+                            color: rightSidebarButton.colText
+                        }
+                    }
+"""
+if anchor not in s:
+    print("   [FAIL] UpdatesIndicator block not found - run step 9 first")
+else:
+    open(p, "w").write(s.replace(anchor, block, 1))
+    print("   [ok] inserted into BarContent.qml")
+PYEOF
+
 echo
 echo "== Reminders =="
 echo "  - Binds in custom/keybinds.lua are ONLY loaded when Hyprland STARTS."
