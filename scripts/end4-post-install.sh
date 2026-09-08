@@ -47,20 +47,56 @@ LUA
     echo "   [ok] kb_layout = $KB_LAYOUT"
 else echo "   [skip] already set (or custom/general.lua missing)"; fi
 
-echo "== 3. No idle dim/lock/suspend =="
-if [ -f "$C/hypr/custom/execs.lua" ] && ! grep -q 'pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
-    cat >> "$C/hypr/custom/execs.lua" <<'LUA'
+echo "== 3. Idle: lock and screen-off, but never suspend =="
+# Locking does NOT touch the session: Hyprland, quickshell, wayvnc and hypr-rdp
+# keep running behind the lock surface, so a remote client just sees the
+# lockscreen and types the password. Suspending drops the machine off the
+# network entirely, and Wake-on-LAN over wifi generally does not work -- which
+# is why only that listener is removed instead of disabling hypridle wholesale.
+#
+# Set NO_IDLE=1 to get the old behaviour (no lock at all) on an always-on box.
+HI="$C/hypr/hypridle.conf"
+if [ "${NO_IDLE:-0}" = "1" ]; then
+    if [ -f "$C/hypr/custom/execs.lua" ] && ! grep -q 'pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
+        cat >> "$C/hypr/custom/execs.lua" <<'LUA'
 
--- No idle dim/lock/suspend (the "always-on desktop" mode).
--- end-4 launches hypridle in hyprland/execs.lua; this stops it after startup.
--- NOTE: this also removes the screen lock. Probably not what you want on a
--- laptop, and the 15-minute suspend listener breaks remote access.
+-- NO_IDLE: no dim/lock/suspend at all. end-4 launches hypridle in
+-- hyprland/execs.lua; this stops it right after startup.
 hl.on("hyprland.start", function()
     hl.exec_cmd("sleep 3 && pkill -x hypridle")
 end)
 LUA
-    echo "   [ok] hypridle disabled"
-else echo "   [skip] already set"; fi
+        echo "   [ok] hypridle disabled (NO_IDLE=1)"
+    else echo "   [skip] hypridle already disabled"; fi
+elif [ -f "$HI" ]; then
+    # hypridle.conf belongs to end-4, so `./setup install` restores the suspend
+    # listener on every update. This has to run again each time.
+    if grep -q 'timeout = 900' "$HI"; then
+        cp "$HI" "$HI.bak"
+        python3 - "$HI" <<'PY'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+s2 = re.sub(r"listener \{\s*\n\s*timeout = 900.*?\n\}\n?", "", s, flags=re.S)
+open(p, "w").write(s2)
+print("   [ok] suspend listener removed (lock at 5 min, screen off at 10)"
+      if s2 != s else "   [FAIL] listener not matched - check by hand")
+PY
+    else echo "   [skip] no suspend listener"; fi
+    # Undo the old rule if a previous run of this script left it behind.
+    if [ -f "$C/hypr/custom/execs.lua" ] && grep -q 'pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
+        cp "$C/hypr/custom/execs.lua" "$C/hypr/custom/execs.lua.bak"
+        python3 - "$C/hypr/custom/execs.lua" <<'PY'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+s2 = re.sub(r"\n?--[^\n]*\n(--[^\n]*\n)*hl\.on\(\"hyprland\.start\", function\(\)\s*\n\s*hl\.exec_cmd\(\"sleep 3 && pkill -x hypridle\"\)\s*\nend\)\n?", "\n", s)
+open(p, "w").write(s2)
+print("   [ok] removed the old rule that killed hypridle"
+      if s2 != s else "   [FAIL] could not remove it - check by hand")
+PY
+    fi
+else echo "   [skip] no hypridle.conf"; fi
 
 echo "== 4. Cheatsheet shortcut (SUPER+Slash is unreachable on es/latam) =="
 if [ -f "$C/hypr/custom/keybinds.lua" ] && ! grep -q 'cheatsheetToggle' "$C/hypr/custom/keybinds.lua"; then
