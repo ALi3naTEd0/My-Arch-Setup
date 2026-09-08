@@ -24,7 +24,7 @@ the lessons that were expensive to find.
 | Network | ethernet | wifi | wifi |
 | Keyboard | `es` | `latam` | `latam` |
 | Autologin | yes | yes | no |
-| SDDM theme | Corners (HyDE) | ii-sddm | ii-sddm |
+| SDDM theme | Corners (HyDE) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) |
 | Swap | zram 4G | zram 4G + 16G partition | zram 3.8G |
 
 All three are on the same tailnet, so they're reachable by Tailscale IP from any
