@@ -90,6 +90,27 @@ version. Step 3 of the post-install reapplies it.
 
 ---
 
+## Screen goes black and nothing brings it back
+
+An external TV over HDMI may not return from DPMS on its own. hypridle's
+10-minute listener turns the output off, and no keypress wakes it — you have to
+switch the TV on or re-pick the input by hand. Internal laptop panels don't have
+this problem.
+
+Drop that listener where the display is a TV:
+
+```bash
+NO_DPMS=1 ~/.local/bin/end4-post-install.sh
+```
+
+Check what you're driving with `hyprctl monitors -j`: `eDP-1` is an internal
+panel, `HDMI-A-1` or `DP-1` an external display.
+
+> Locking is unaffected — the lock surface keeps the output on, so you still get
+> the 5-minute lock without risking a screen you cannot wake.
+
+---
+
 ## btrfs: "No space left" with gigabytes free
 
 `df` lies. What matters is **`Device unallocated`**:

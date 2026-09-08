@@ -55,6 +55,9 @@ echo "== 3. Idle: lock and screen-off, but never suspend =="
 # is why only that listener is removed instead of disabling hypridle wholesale.
 #
 # Set NO_IDLE=1 to get the old behaviour (no lock at all) on an always-on box.
+# Set NO_DPMS=1 where the display is an external TV over HDMI: those often do
+# not come back from DPMS on their own, leaving a black screen that no keypress
+# recovers. Internal laptop panels (eDP) wake reliably, so this is per-machine.
 HI="$C/hypr/hypridle.conf"
 if [ "${NO_IDLE:-0}" = "1" ]; then
     if [ -f "$C/hypr/custom/execs.lua" ] && ! grep -q 'pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
@@ -71,10 +74,11 @@ LUA
 elif [ -f "$HI" ]; then
     # hypridle.conf belongs to end-4, so `./setup install` restores the suspend
     # listener on every update. This has to run again each time.
-    if grep -q 'timeout = 900' "$HI" || grep -q 'on-timeout = loginctl lock-session' "$HI"; then
+    if grep -q 'timeout = 900' "$HI" || grep -q 'on-timeout = loginctl lock-session' "$HI" \
+       || { [ "${NO_DPMS:-0}" = "1" ] && grep -q 'timeout = 600' "$HI"; }; then
         cp "$HI" "$HI.bak"
         python3 - "$HI" <<'PYEOF'
-import re, sys
+import os, re, sys
 p = sys.argv[1]
 s = open(p).read()
 orig = s
@@ -87,8 +91,13 @@ s = re.sub(r"listener \{\s*\n\s*timeout = 900.*?\n\}\n?", "", s, flags=re.S)
 #    is a machine that simply never locks, with no error anywhere.
 s = s.replace("    timeout = 300 # 5mins\n    on-timeout = loginctl lock-session",
               "    timeout = 300 # 5mins\n    on-timeout = $lock_cmd")
+# c) Optional: drop the screen-off listener too. An HDMI TV may not return from
+#    DPMS without being switched on by hand.
+if os.environ.get("NO_DPMS") == "1":
+    s = re.sub(r"listener \{\s*\n\s*timeout = 600.*?\n\}\n?", "", s, flags=re.S)
 open(p, "w").write(s)
 print("   [ok] suspend listener dropped, 5-min lock rewired to $lock_cmd"
+      + (", DPMS listener dropped" if os.environ.get("NO_DPMS") == "1" else "")
       if s != orig else "   [FAIL] neither pattern matched - check by hand")
 PYEOF
     else echo "   [skip] already adjusted"; fi
