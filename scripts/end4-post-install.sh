@@ -71,18 +71,27 @@ LUA
 elif [ -f "$HI" ]; then
     # hypridle.conf belongs to end-4, so `./setup install` restores the suspend
     # listener on every update. This has to run again each time.
-    if grep -q 'timeout = 900' "$HI"; then
+    if grep -q 'timeout = 900' "$HI" || grep -q 'on-timeout = loginctl lock-session' "$HI"; then
         cp "$HI" "$HI.bak"
-        python3 - "$HI" <<'PY'
+        python3 - "$HI" <<'PYEOF'
 import re, sys
 p = sys.argv[1]
 s = open(p).read()
-s2 = re.sub(r"listener \{\s*\n\s*timeout = 900.*?\n\}\n?", "", s, flags=re.S)
-open(p, "w").write(s2)
-print("   [ok] suspend listener removed (lock at 5 min, screen off at 10)"
-      if s2 != s else "   [FAIL] listener not matched - check by hand")
-PY
-    else echo "   [skip] no suspend listener"; fi
+orig = s
+# a) Drop the 15-minute suspend listener: suspending takes the machine off the
+#    network entirely, and Wake-on-LAN over wifi generally does not work.
+s = re.sub(r"listener \{\s*\n\s*timeout = 900.*?\n\}\n?", "", s, flags=re.S)
+# b) The 5-minute listener ships as `loginctl lock-session`, which is a no-op
+#    here: nothing answers logind's Lock signal, so the timer fires and nothing
+#    locks. $lock_cmd uses the quickshell global, which does work. The symptom
+#    is a machine that simply never locks, with no error anywhere.
+s = s.replace("    timeout = 300 # 5mins\n    on-timeout = loginctl lock-session",
+              "    timeout = 300 # 5mins\n    on-timeout = $lock_cmd")
+open(p, "w").write(s)
+print("   [ok] suspend listener dropped, 5-min lock rewired to $lock_cmd"
+      if s != orig else "   [FAIL] neither pattern matched - check by hand")
+PYEOF
+    else echo "   [skip] already adjusted"; fi
     # Undo the old rule if a previous run of this script left it behind.
     if [ -f "$C/hypr/custom/execs.lua" ] && grep -q 'pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
         cp "$C/hypr/custom/execs.lua" "$C/hypr/custom/execs.lua.bak"

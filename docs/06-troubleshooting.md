@@ -49,6 +49,47 @@ is not enough.
 
 ---
 
+## The screen never locks
+
+hypridle runs, the config looks right, and nothing ever happens. `loginctl
+show-session N -p LockedHint` stays `no` and no lock surface appears.
+
+end-4's `hypridle.conf` ships the 5-minute listener as:
+
+```
+listener {
+    timeout = 300 # 5mins
+    on-timeout = loginctl lock-session
+}
+```
+
+That asks logind to lock the session, and **nothing answers logind's Lock
+signal** here — so the timer fires into the void. Meanwhile the file also
+defines a `$lock_cmd` that does work, but only wires it to `general.lock_cmd`,
+which hypridle runs when logind asks *it* to lock. A request that never comes.
+
+Test the two paths apart:
+
+```bash
+loginctl lock-session 2                                    # no-op
+hyprctl dispatch 'hl.dsp.global("quickshell:lock")'        # locks
+```
+
+Fix: point the listener at the command that works.
+
+```
+    on-timeout = $lock_cmd
+```
+
+`hypridle.conf` belongs to end-4, so `./setup install` restores the broken
+version. Step 3 of the post-install reapplies it.
+
+> Pick the session by `Type=wayland`, not `list-sessions | head -1` — the first
+> row is usually the systemd user manager, and locking it returns
+> *"Session does not support lock screen"*.
+
+---
+
 ## btrfs: "No space left" with gigabytes free
 
 `df` lies. What matters is **`Device unallocated`**:
