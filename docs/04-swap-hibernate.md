@@ -1,72 +1,71 @@
-# Swap e hibernación
+# Swap and hibernation
 
-Dos caminos según el sistema de archivos. La **partición** es lo que está
-probado en la Lenovo (16 G en `/dev/nvme0n1p3`); el **swapfile en btrfs** es la
-alternativa cuando el disco ya está todo asignado y no puedes repartir.
+Two routes depending on the filesystem. The **partition** is what's proven on
+the Lenovo (16 G on `/dev/nvme0n1p3`); the **btrfs swapfile** is the alternative
+when the disk is fully allocated and you can't repartition.
 
 ---
 
-## Cuánto swap
+## How much swap
 
-| Caso | Tamaño |
+| Case | Size |
 |---|---|
-| Solo red de seguridad tras zram | 8 GiB |
-| Uso normal (VMs, compilaciones) | 16 GiB |
-| **Con hibernación** | ≥ RAM, en la práctica RAM + 10% |
+| Just a safety net behind zram | 8 GiB |
+| Normal use (VMs, builds) | 16 GiB |
+| **With hibernation** | ≥ RAM, in practice RAM + 10% |
 
-Con zram ya en marcha, el swap en disco es un **segundo escalón**, no el
-primero. Ponle prioridad más baja para que el kernel comprima en RAM antes de
-bajar al disco:
+With zram already running, disk swap is a **second tier**, not the first. Give
+it a lower priority so the kernel compresses in RAM before going to disk:
 
 ```
 /swap/swapfile  none  swap  defaults,pri=10  0 0
 ```
 
-zram suele estar en `pri=100`. Comprobar con `swapon --show`.
+zram usually sits at `pri=100`. Check with `swapon --show`.
 
-> **Swap lleno ≠ falta de memoria.** Mira `/proc/pressure/memory`: si `some` y
-> `full` están en 0.00, el sistema no está sufriendo — son páginas frías que el
-> kernel sacó y no tiene motivo para traer de vuelta. Lo que sí es peligroso es
-> **no tener segundo escalón**: cuando zram se llena, el siguiente pico va
-> directo al OOM killer.
+> **Full swap ≠ memory pressure.** Look at `/proc/pressure/memory`: if `some`
+> and `full` read 0.00, nothing is stalling — those are cold pages the kernel
+> evicted and has no reason to bring back. What *is* dangerous is **having no
+> second tier**: once zram fills up, the next spike goes straight to the OOM
+> killer.
 
 ---
 
-## Opción A · Partición (probado en la Lenovo)
+## Option A · Partition (proven on the Lenovo)
 
-1. Crear la partición con GParted o Partition Manager, formato **linux-swap**
-2. Activarla: `sudo swapon /dev/nvme0n1p3`
-3. Verificar: `swapon --show`
-4. Añadir el hook `resume` a `/etc/mkinitcpio.conf`:
+1. Create the partition with GParted or Partition Manager, format **linux-swap**
+2. Activate it: `sudo swapon /dev/nvme0n1p3`
+3. Verify: `swapon --show`
+4. Add the `resume` hook to `/etc/mkinitcpio.conf`:
 
 ```
 HOOKS=(base udev autodetect modconf block filesystems resume keyboard fsck)
 ```
 
-5. Sacar el UUID de la partición: `blkid`
-6. Añadir `resume=UUID=…` en `/boot/loader/entries/*.conf`:
+5. Get the partition UUID: `blkid`
+6. Add `resume=UUID=…` to `/boot/loader/entries/*.conf`:
 
 ```
 options root=PARTUUID=… zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs resume=UUID=78acba64-6959-4382-91ca-773199f00af3
 ```
 
-7. Regenerar: `sudo mkinitcpio -P`
-8. Probar: `systemctl hibernate`
+7. Regenerate: `sudo mkinitcpio -P`
+8. Test: `systemctl hibernate`
 
-> El orden importa: `resume` va **después** de `filesystems`. Y `zswap.enabled=0`
-> evita que zswap y zram se pisen.
+> Order matters: `resume` goes **after** `filesystems`. And `zswap.enabled=0`
+> keeps zswap and zram from fighting each other.
 
 ---
 
-## Opción B · Swapfile en btrfs (cuando no hay hueco para partición)
+## Option B · btrfs swapfile (when there's no room for a partition)
 
-Caso de la Titan: `nvme0n1p1` (1 G `/boot`) + `nvme0n1p2` (952.9 G btrfs) = disco
-completo. Cero espacio sin asignar, y no se puede encoger la raíz montada sin un
-USB live. Desde el kernel 5.0 btrfs soporta swapfiles.
+Titan's case: `nvme0n1p1` (1 G `/boot`) + `nvme0n1p2` (952.9 G btrfs) = the
+whole disk. Zero unallocated space, and you cannot shrink a mounted btrfs root
+without a live USB. btrfs has supported swapfiles since kernel 5.0.
 
-### Subvolumen dedicado
+### Dedicated subvolume
 
-Al nivel superior, para que Timeshift no lo meta en los snapshots:
+At top level, so Timeshift doesn't pull it into snapshots:
 
 ```bash
 sudo mkdir -p /mnt/btrfs-top
@@ -78,11 +77,11 @@ sudo umount /mnt/btrfs-top && sudo rmdir /mnt/btrfs-top
 ### fstab
 
 ```
-UUID=<uuid-de-p2>  /swap  btrfs  rw,noatime,subvol=/@swap  0 0
-/swap/swapfile     none   swap   defaults,pri=10           0 0
+UUID=<p2-uuid>  /swap  btrfs  rw,noatime,subvol=/@swap  0 0
+/swap/swapfile  none   swap   defaults,pri=10           0 0
 ```
 
-### Crear y activar
+### Create and activate
 
 ```bash
 sudo mkdir -p /swap
@@ -92,48 +91,47 @@ sudo btrfs filesystem mkswapfile --size 16g --uuid clear /swap/swapfile
 sudo swapon /swap/swapfile
 ```
 
-`btrfs filesystem mkswapfile` (btrfs-progs 6.1+) se encarga solo del
-**NODATACOW**, la no-compresión y la preasignación. A mano con `fallocate` +
-`mkswap`, el `swapon` falla por el CoW y la compresión `zstd` heredada del
-montaje.
+`btrfs filesystem mkswapfile` (btrfs-progs 6.1+) handles **NODATACOW**,
+no-compression and preallocation on its own. Done by hand with `fallocate` +
+`mkswap`, the `swapon` fails because of CoW and the `zstd` compression inherited
+from the mount.
 
-### Hibernación con swapfile
+### Hibernation with a swapfile
 
-Además del `resume=UUID=` necesitas `resume_offset`:
+On top of `resume=UUID=` you also need `resume_offset`:
 
 ```bash
 sudo btrfs inspect-internal map-swapfile -r /swap/swapfile
 ```
 
-Ese número va como `resume_offset=` en las opciones del bootloader, junto al
-`resume=UUID=` del **dispositivo**, no del archivo.
+That number goes as `resume_offset=` in the bootloader options, alongside the
+`resume=UUID=` of the **device**, not the file.
 
 ---
 
-## Comprobar que la hibernación es viable
+## Checking hibernation is viable
 
 ```bash
-cat /sys/power/resume          # "0:0" = no configurada
+cat /sys/power/resume          # "0:0" = not configured
 grep -o 'resume=[^ ]*' /proc/cmdline
-free -h                        # el swap debe superar la RAM usada
+free -h                        # swap must exceed used RAM
 ```
 
-Consideración de seguridad: la imagen de hibernación contiene **toda la RAM en
-claro**. En un disco sin cifrar, eso incluye claves y contraseñas que estuvieran
-en memoria.
+Security note: the hibernation image contains **all of RAM in the clear**. On an
+unencrypted disk that includes any keys and passwords that were in memory.
 
 ---
 
 ## zram
 
-Ya viene configurado por `zram-generator`. Ver y ajustar:
+Already set up by `zram-generator`. Inspect and tune:
 
 ```bash
 swapon --show
 cat /etc/systemd/zram-generator.conf
 ```
 
-Las tres máquinas llevan ~4 G de zram. La Titan lo tuvo **al 100%** durante días
-sin que fuera un problema (presión de memoria en 0.00) — pero sin segundo
-escalón, cualquier pico se convierte en OOM. Ver
-[el caso del thumbnailer](06-troubleshooting.md#la-sesión-se-cae-en-bucle--oom-por-el-generador-de-miniaturas).
+All three machines carry ~4 G of zram. Titan sat at **100%** for days without it
+being a problem (memory pressure at 0.00) — but with no second tier, any spike
+turns into an OOM. See
+[the thumbnailer case](06-troubleshooting.md#session-dies-in-a-loop--oom-from-the-thumbnail-generator).

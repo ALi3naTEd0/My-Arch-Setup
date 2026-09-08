@@ -1,32 +1,32 @@
 # Troubleshooting
 
-Fallos reales de estas tres máquinas. Cada uno incluye **el síntoma tal como se
-percibe**, que casi nunca apunta a la causa.
+Real failures from these three machines. Each one lists **the symptom as it is
+actually perceived**, which almost never points at the cause.
 
 ---
 
-## La sesión se cae en bucle · OOM por el generador de miniaturas
+## Session dies in a loop · OOM from the thumbnail generator
 
-**Síntomas percibidos:** «no detecta el teclado», «el mouse va lentísimo», «no
-funcionan los keybinds», la máquina se reinicia sola.
+**Perceived symptoms:** "the keyboard isn't detected", "the mouse is super
+slow", "the keybinds don't work", the machine reboots on its own.
 
-Los tres primeros son **el mismo fallo**: no hay compositor. Perseguimos el
-greeter de SDDM un buen rato antes de mirar el journal de systemd.
+The first three are **the same failure**: there is no compositor. We chased the
+SDDM greeter for a while before looking at the systemd journal.
 
-**Causa.** `~/.config/quickshell/ii/scripts/thumbnails/generate-thumbnails-magick.sh`
-lanza un `magick` por archivo **sin límite de concurrencia**:
+**Cause.** `~/.config/quickshell/ii/scripts/thumbnails/generate-thumbnails-magick.sh`
+spawns one `magick` per file with **no concurrency limit**:
 
 ```bash
 for f in "$TARGET"/*; do
-    generate_thumbnail "$f" &      # 954 wallpapers = 954 procesos
+    generate_thumbnail "$f" &      # 954 wallpapers = 954 processes
 done
 wait
 ```
 
-ImageMagick se autoconfigura para poder usar **toda la RAM** del equipo
-(`magick -list resource` reporta `Memory: 7.53GiB` en una máquina de 7.5 GB). El
-OOM killer elige `qs` porque el slice de sesión lleva `oom_score_adj=200`, y al
-morir quickshell cae la sesión entera.
+ImageMagick configures itself to be allowed **all of the machine's RAM**
+(`magick -list resource` reports `Memory: 7.53GiB` on a 7.5 GB box). The OOM
+killer picks `qs` because the session slice carries `oom_score_adj=200`, and
+when quickshell dies the whole session goes with it.
 
 ```
 kernel: magick invoked oom-killer
@@ -34,68 +34,70 @@ kernel: Out of memory: Killed process 4283 (qs)
 systemd: wayland-wm@hyprland.desktop.service: Failed with result 'oom-kill'
 ```
 
-**Diagnóstico rápido:**
+**Quick diagnosis:**
 ```bash
 journalctl -b | grep -iE "oom-kill|Killed process"
 systemctl --user status wayland-wm@hyprland.desktop.service
 ```
 
-**Arreglo** (lo aplica `end4-post-install.sh`): acotar a un trabajo por núcleo y
-poner techo a ImageMagick. Afectó también a la máquina de 15 GiB — no basta con
-tener RAM de sobra.
+**Fix** (applied by `end4-post-install.sh`): cap at one job per core and put a
+ceiling on ImageMagick. This also hit the 15 GiB machine — having plenty of RAM
+is not enough.
 
-> El archivo lo sobrescribe `./setup install`. Sin reaplicar el parche, vuelve.
+> `./setup install` overwrites this file. Without reapplying the patch, it
+> comes back.
 
 ---
 
-## btrfs: «No space left» con gigas libres
+## btrfs: "No space left" with gigabytes free
 
-`df` miente. Lo que importa es **`Device unallocated`**:
+`df` lies. What matters is **`Device unallocated`**:
 
 ```bash
 btrfs filesystem usage /
 ```
 
-Si `unallocated` se acerca a cero, los metadatos no pueden crecer aunque `Free
-(estimated)` diga decenas de gigas. Sospechosos habituales, todos regenerables:
+If `unallocated` approaches zero, metadata cannot grow even though `Free
+(estimated)` reports tens of gigabytes. Usual suspects, all regenerable:
 
-| Ruta | Qué es |
+| Path | What it is |
 |---|---|
-| `~/.cache/paru`, `~/.cache/yay`, `~/.cache/Shelly` | compilaciones del AUR |
-| `~/.cache/hyde`, `~/.cache/dots-hyprland` | cachés de los dotfiles |
-| `/var/cache/pacman/pkg` | paquetes descargados |
-| `~/.local/share/Trash` | papelera (**datos tuyos**, revisar antes) |
+| `~/.cache/paru`, `~/.cache/yay`, `~/.cache/Shelly` | AUR build trees |
+| `~/.cache/hyde`, `~/.cache/dots-hyprland` | dotfiles caches |
+| `/var/cache/pacman/pkg` | downloaded packages |
+| `~/.local/share/Trash` | trash (**your data** — review first) |
 
 ```bash
 paru -Sc --noconfirm
 rm -rf ~/.cache/{paru,yay,Shelly,hyde,dots-hyprland}
-sudo paccache -r        # conserva las 3 últimas versiones
+sudo paccache -r        # keeps the last 3 versions
 sudo btrfs balance start -dusage=50 /
 ```
 
-El `balance` es lo que devuelve espacio a `unallocated`.
+The `balance` is what returns space to `unallocated`.
 
 ---
 
 ## uwsm
 
-**Sin uwsm, `graphical-session.target` nunca se activa** y ningún servicio de
-usuario arranca — wayvnc, hypr-rdp y cualquier cosa con
-`WantedBy=graphical-session.target` quedan muertos sin explicación.
+**Without uwsm, `graphical-session.target` never activates** and no user service
+starts — wayvnc, hypr-rdp and anything with `WantedBy=graphical-session.target`
+sits dead with no explanation.
 
 ```bash
-systemctl --user is-active graphical-session.target   # debe decir "active"
+systemctl --user is-active graphical-session.target   # must say "active"
 ```
 
-En SDDM hay que elegir la sesión **«Hyprland (uwsm-managed)»**, no la simple. Y
-`uwsm` es dependencia *opcional* de Hyprland: en un Arch limpio no está, aunque
-`/usr/share/wayland-sessions/hyprland-uwsm.desktop` sí exista. Ese `.desktop` lo
-trae el paquete `hyprland` y apunta a un binario que puede no existir.
+In SDDM you must pick the **"Hyprland (uwsm-managed)"** session, not the plain
+one. And `uwsm` is an *optional* dependency of Hyprland: on a clean Arch it is
+absent even though `/usr/share/wayland-sessions/hyprland-uwsm.desktop` exists.
+That `.desktop` ships with the `hyprland` package and points at a binary that
+may not be installed.
 
-### Variables de entorno de la sesión
+### Session environment variables
 
-uwsm **no lee directorios `.d` por su cuenta**. Lo que los habilita es un bucle
-dentro de `~/.config/uwsm/env-hyprland`, que en las máquinas con HyDE creó él:
+uwsm **does not read `.d` directories on its own**. What enables them is a loop
+inside `~/.config/uwsm/env-hyprland`, which on HyDE machines HyDE itself created:
 
 ```sh
 for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/uwsm/env-hyprland.d/*.sh; do
@@ -103,98 +105,100 @@ for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/uwsm/env-hyprland.d/*.sh; do
 done
 ```
 
-En una máquina sin HyDE hay que crearlo a mano. Después, cada variable va en su
-propio `~/.config/uwsm/env-hyprland.d/NN-loquesea.sh`.
+On a machine without HyDE you have to create it. After that, each variable goes
+in its own `~/.config/uwsm/env-hyprland.d/NN-whatever.sh`.
 
 ---
 
 ## SDDM
 
-### Pantalla negra al arrancar
+### Black screen at boot
 
-**Causa:** tema sin `metadata.desktop`. Sin ese archivo SDDM no sabe qué versión
-de Qt usar y cae al greeter **Qt5** (`/usr/bin/sddm-greeter`), que en un Arch
-moderno no tiene sus librerías:
+**Cause:** a theme with no `metadata.desktop`. Without that file SDDM cannot
+tell which Qt version to use and falls back to the **Qt5** greeter
+(`/usr/bin/sddm-greeter`), which on a modern Arch has no libraries:
 
 ```
 sddm[566]: Auth: sddm-helper exited with 127
 ldd /usr/bin/sddm-greeter | grep "not found"    # libQt5Quick.so.5
 ```
 
-Pasó con el tema `Corners` de HyDE. Los temas que funcionan declaran
-`QtVersion=6` en su `metadata.desktop`.
+This happened with HyDE's `Corners` theme. Working themes declare
+`QtVersion=6` in their `metadata.desktop`.
 
-**Recuperación** (por SSH desde otra máquina):
+**Recovery** (over SSH from another machine):
 ```bash
-ssh -t x@IP "sudo rm /etc/sddm.conf.d/TEMA.conf && sudo systemctl restart sddm"
+ssh -t x@IP "sudo rm /etc/sddm.conf.d/THEME.conf && sudo systemctl restart sddm"
 ```
 
-> El `-t` es lo que permite que `sudo` pida contraseña por SSH.
+> The `-t` is what lets `sudo` prompt for a password over SSH.
 
-### Probar un tema ANTES de activarlo
+### Test a theme BEFORE enabling it
 
-Este es **el paso que evita la pantalla negra**:
+This is **the step that prevents the black screen**:
 
 ```bash
-QML2_IMPORT_PATH=/usr/share/sddm/themes/TEMA/Components/ \
+QML2_IMPORT_PATH=/usr/share/sddm/themes/THEME/Components/ \
 QT_QPA_PLATFORM=wayland \
-sddm-greeter-qt6 --test-mode --theme /usr/share/sddm/themes/TEMA
+sddm-greeter-qt6 --test-mode --theme /usr/share/sddm/themes/THEME
 ```
 
-Las dos variables importan. `QML2_IMPORT_PATH` normalmente lo inyecta SDDM vía
-`GreeterEnvironment` y **no existe al lanzar el greeter a mano** — sin ella el
-tema se queda colgado en «Iniciando». Y `QT_QPA_PLATFORM=wayland` evita que Qt
-intente el plugin `xcb` y aborte con «could not connect to display».
+Both variables matter. `QML2_IMPORT_PATH` is normally injected by SDDM through
+`GreeterEnvironment` and **does not exist when launching the greeter by hand** —
+without it the theme hangs at "Starting". And `QT_QPA_PLATFORM=wayland` keeps Qt
+from trying the `xcb` plugin and aborting with "could not connect to display".
 
-### Varios archivos definiendo el tema
+### Several files setting the theme
 
-SDDM lee `/etc/sddm.conf.d/*.conf` en **orden alfabético y el último gana**. En
-máquinas que pasaron por HyDE, su `the_hyde_project.conf` trae `Current=Corners`
-y se lee después que un `ii-sddm-theme.conf`. Solución: prefijo `zz-`.
+SDDM reads `/etc/sddm.conf.d/*.conf` in **alphabetical order, and the last one
+wins**. On machines that came from HyDE, its `the_hyde_project.conf` carries
+`Current=Corners` and is read after an `ii-sddm-theme.conf`. Fix: a `zz-` prefix.
 
 ```bash
-ls /etc/sddm.conf.d/           # ver el orden real
+ls /etc/sddm.conf.d/           # see the real order
 grep -h Current= /etc/sddm.conf.d/*.conf
 ```
 
-### Distribución de teclado del greeter
+### Greeter keyboard layout
 
-El indicador muestra `en` porque el greeter no lee tu layout. `Xsetup` corre como
-root antes del login y **está en el array `backup` de pacman**, así que editarlo
-sobrevive a las actualizaciones:
+The indicator shows `en` because the greeter does not read your layout. `Xsetup`
+runs as root before the login and **is in pacman's `backup` array**, so editing
+it survives updates:
 
 ```bash
 echo 'setxkbmap -model pc105 -layout latam -option terminate:ctrl_alt_bksp' \
   | sudo tee -a /usr/share/sddm/scripts/Xsetup
 ```
 
-El código que verás después es `es` (el `shortDescription` que xkb asigna a
-*Spanish (Latin American)*), no `latam`.
+The code you'll see afterwards is `es` — the `shortDescription` xkb assigns to
+*Spanish (Latin American)* — not `latam`.
 
 ---
 
-## Acceso remoto
+## Remote access
 
-### VNC: la ñ y los acentos no funcionan
+### VNC: ñ and accents don't work
 
-Los clientes VNC mandan **keysyms**, y wayvnc los traduce con **su propio
-keymap**, independiente del que tenga Hyprland. Sin `-k` usa el de fábrica (US).
+VNC clients send **keysyms**, and wayvnc translates them with **its own
+keymap**, independent of Hyprland's. Without `-k` it uses the built-in default
+(US).
 
 ```bash
 wayvnc -k latam -o eDP-1 0.0.0.0 5900
 ```
 
-### RDP: el teclado de la sesión se pone en US
+### RDP: the session keyboard switches to US
 
-hypr-rdp crea un teclado virtual y, con `keyboard_layout_policy = "client"`, le
-aplica el layout **que reporta el cliente**. Ese teclado virtual queda
-`main=True` y tapa al físico: la sesión entera pasa a US.
+hypr-rdp creates a virtual keyboard and, with
+`keyboard_layout_policy = "client"`, applies **the layout the client reports**.
+That virtual keyboard ends up `main=True` and shadows the physical one: the
+whole session goes US.
 
 ```toml
-keyboard_layout_policy = "compositor"   # usa el layout de esta máquina
+keyboard_layout_policy = "compositor"   # use this machine's layout
 ```
 
-Comprobar:
+Check with:
 ```bash
 hyprctl devices -j | python3 -c "
 import json,sys
@@ -202,114 +206,131 @@ for k in json.load(sys.stdin)['keyboards']:
     print(k['name'], k['layout'], k['active_keymap'], k['main'])"
 ```
 
-### Se ve borroso / con lag
+### RDP: white screen
 
-Dos palancas distintas:
+`egfx_codec = "avc444"` is 4:4:4 chroma, and **Intel's H.264 encoder is 4:2:0
+only**. Check what the hardware actually supports:
 
-- **wayvnc sin `-g`** comprime en CPU. Con `-g -f 60` mejora de forma notable.
-- **RDP con `egfx_codec = "avc420"`** usa croma 4:2:0 — el color se muestrea a
-  un cuarto de resolución y el **texto sale con halos**. `avc444` lo arregla.
+```bash
+vainfo | grep -iE "H264.*Enc"
+```
 
-### …pero primero mide la red
+On the HP, VA-API AVC444 fails and falls back cleanly to software libx264; on
+the Lenovo the fallback does not work and you get a white screen. Use `avc420`
+on Intel — it's also the better performance choice, since it keeps encoding on
+QuickSync instead of the CPU.
 
-El culpable suele ser el enlace, no el protocolo:
+### Blurry or laggy
+
+Two different levers:
+
+- **wayvnc without `-g`** compresses on the CPU. `-g -f 60` is a large
+  improvement.
+- **RDP with `egfx_codec = "avc420"`** uses 4:2:0 chroma — color is sampled at
+  quarter resolution and **text gets colored fringes**. `avc444` fixes it, but
+  only where the encoder supports it (see above).
+
+### …but measure the network first
+
+The culprit is usually the link, not the protocol:
 
 ```bash
 ping -c 40 -i 0.05 -q IP
 ```
 
-Lo que importa no es el ancho de banda sino el **jitter** (`mdev`). Medido en
-estas máquinas:
+What matters is not bandwidth but **jitter** (`mdev`). Measured on these
+machines:
 
-| | latencia media | pico | mdev |
+| | avg latency | peak | mdev |
 |---|---|---|---|
 | Lenovo | 1.8 ms | 25 ms | 3.9 ms |
 | HP | 19.2 ms | **182 ms** | **39.8 ms** |
 
-Ambas con ~276 Mbit/s de caudal. La HP se sentía mal por **estar en otro punto
-de acceso**, con un salto extra entre routers. A 60 fps cada fotograma debe
-llegar cada 16.7 ms; con picos de 182 ms no hay códec que lo arregle.
+Both at ~276 Mbit/s of throughput. The HP felt bad because it sits on **a
+different access point**, with an extra hop between routers. At 60 fps a frame
+must arrive every 16.7 ms; with 182 ms peaks no codec can save you.
 
-Sunshine/Moonlight es el **más** sensible al jitter porque sincroniza por
-tiempo: descarta el fotograma que llega tarde. VNC es más tosco y más tolerante.
+Sunshine/Moonlight is the **most** jitter-sensitive of all, because it
+synchronises by time and discards frames that arrive late. VNC is cruder and
+more tolerant.
 
-Ver también: `iwlmvm power_scheme` en 2 (equilibrado) hace dormir la radio —
-firma típica: mínimo 0.8 ms pero media 19 ms.
+Also worth checking: `iwlmvm power_scheme` at 2 (balanced) puts the radio to
+sleep — typical signature is a 0.8 ms minimum against a 19 ms average.
 
 ---
 
-## Residuos de HyDE
+## HyDE leftovers
 
-Tras migrar a end-4 quedan cosas de HyDE. **No todas estorban:**
+After migrating to end-4 some HyDE pieces remain. **Not all of them are in the
+way:**
 
-| Ruta | Veredicto |
+| Path | Verdict |
 |---|---|
-| `~/.local/lib/hyde/wallbash.sh` + plantillas `.dcol` | **útil** — lo usa `wallbash-kitty.sh` |
-| `/usr/share/sddm/themes/{Corners,MacOS,…}` | sueltos, sin dueño (`pacman -Qo` no los reconoce) |
-| `~/.config/zsh/conf.d/hyde/prompt.zsh` | **no borrar** — es quien sourcea `~/.config/zsh/prompt.zsh` |
-| `~/.config/fish/conf.d/hyde.fish` | inofensivo si existe `functions/bind_M_n_history.fish` |
-| `/etc/sddm.conf.d/the_hyde_project.conf` | causa el conflicto de temas de arriba |
-| `~/.config/qt6ct.conf`, `~/.config/dunst/` | inertes; end-4 usa `kdeglobals` y su propio servicio |
+| `~/.local/lib/hyde/wallbash.sh` + `.dcol` templates | **useful** — `wallbash-kitty.sh` uses them |
+| `/usr/share/sddm/themes/{Corners,MacOS,…}` | loose, unowned (`pacman -Qo` doesn't know them) |
+| `~/.config/zsh/conf.d/hyde/prompt.zsh` | **do not delete** — it is what sources `~/.config/zsh/prompt.zsh` |
+| `~/.config/fish/conf.d/hyde.fish` | harmless as long as `functions/bind_M_n_history.fish` exists |
+| `/etc/sddm.conf.d/the_hyde_project.conf` | causes the theme conflict above |
+| `~/.config/qt6ct.conf`, `~/.config/dunst/` | inert; end-4 uses `kdeglobals` and its own service |
 
-### El prompt
+### The prompt
 
-HyDE sourcea `~/.config/zsh/prompt.zsh` y **respeta lo que devuelva**: con
-`return 1` cede el turno a su propio prompt. Para que mande el de end-4:
+HyDE sources `~/.config/zsh/prompt.zsh` and **honours whatever it returns**:
+with `return 1` it hands the turn to its own prompt. To let end-4's win:
 
 ```bash
 sed -i 's|^return 1 # TODO|# return 1 # TODO|' ~/.config/zsh/prompt.zsh
 sed -i 's|^# eval "$(starship init zsh)"|eval "$(starship init zsh)"|' ~/.config/zsh/prompt.zsh
 ```
 
-**Dejar `STARSHIP_CONFIG` comentado a propósito** — apunta al `.toml` de HyDE y
-volvería a secuestrar el prompt. Sin esa variable, starship lee
-`~/.config/starship.toml`, que es el de end-4.
+**Leave `STARSHIP_CONFIG` commented out on purpose** — it points at HyDE's
+`.toml` and would hijack the prompt again. Without that variable, starship reads
+`~/.config/starship.toml`, which is end-4's.
 
-Para saber cuál está activo: `cmd_duration` solo existe en el toml de end-4.
+To tell which one is active: `cmd_duration` only exists in end-4's toml.
 
 ---
 
 ## kitty
 
-### No toma los colores nuevos al cambiar de wallpaper
+### Doesn't pick up new colors on wallpaper change
 
-`applycolor.sh` de end-4 escribía el tema con `>` (truncando) y luego lanzaba
-`sed` sobre el archivo ya vacío. [PR #3627](https://github.com/end-4/dots-hyprland/pull/3627)
-lo corrige con escritura atómica.
+end-4's `applycolor.sh` wrote the theme with `>` (truncating) and then ran `sed`
+against the already-empty file. [PR #3627](https://github.com/end-4/dots-hyprland/pull/3627)
+fixes it with an atomic write.
 
-### El `include` no funciona
+### The `include` doesn't work
 
-kitty **no admite comentarios en la misma línea** que un `include`: se traga el
-resto de la línea como parte del nombre del archivo.
+kitty **does not accept comments on the same line** as an `include`: it swallows
+the rest of the line as part of the filename.
 
 ```
-# mal:   include wallbash-theme.conf   # comentario
-# bien:
-# comentario en su propia línea
+# wrong:  include wallbash-theme.conf   # comment
+# right:
+# comment on its own line
 include wallbash-theme.conf
 ```
 
-### `sequences.txt` pisa los colores
+### `sequences.txt` overrides the colors
 
-end-4 emite `sequences.txt` a **todas** las `/dev/pts` abiertas desde
-`apply_anyterm`, después de que kitty haya cargado su config. `wallbash-kitty.sh`
-reescribe ese archivo con la misma paleta para que gane quien gane, el resultado
-sea idéntico.
+end-4 emits `sequences.txt` to **every** open `/dev/pts` from `apply_anyterm`,
+after kitty has already loaded its config. `wallbash-kitty.sh` rewrites that file
+with the same palette so that whichever wins, the result is identical.
 
 ---
 
-## Miscelánea
+## Miscellaneous
 
-**Hyprland no lleva `WAYLAND_DISPLAY` en su propio environ** (él crea el
-display). En scripts y cron hay que leerlo del runtime dir:
+**Hyprland does not carry `WAYLAND_DISPLAY` in its own environ** (it creates the
+display). In scripts and cron, read it from the runtime dir:
 
 ```bash
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 WAYLAND_DISPLAY=$(ls "$XDG_RUNTIME_DIR" | grep -E '^wayland-[0-9]+$' | head -1)
 ```
 
-**La instancia de Hyprland «más reciente» no siempre es la viva.** Quedan
-directorios obsoletos en `$XDG_RUNTIME_DIR/hypr/`; hay que probar el socket:
+**The "most recent" Hyprland instance is not always the live one.** Stale
+directories linger in `$XDG_RUNTIME_DIR/hypr/`; probe the socket instead:
 
 ```bash
 for d in "$XDG_RUNTIME_DIR"/hypr/*/; do s=$(basename "$d")
@@ -317,17 +338,21 @@ for d in "$XDG_RUNTIME_DIR"/hypr/*/; do s=$(basename "$d")
 done
 ```
 
-**Los binds de `custom/keybinds.lua` solo se cargan al ARRANCAR Hyprland.**
-`hyprctl reload` no los toma.
+**Binds in `custom/keybinds.lua` are only loaded when Hyprland STARTS.**
+`hyprctl reload` does not pick them up.
 
-**`pkexec` no propaga la terminal** a comandos interactivos. Por eso el
-`apps.update` de serie de end-4 no funciona y hay que cambiarlo por `sudo` o
-`yay` en una kitty.
+**`pkexec` does not pass a terminal** to interactive commands. That's why
+end-4's stock `apps.update` doesn't work and has to be swapped for `sudo` or
+`yay` inside a kitty.
 
-**El indicador de updates no aparece** si no hay actualizaciones pendientes:
-`shouldShow: Updates.available && Updates.count > 0`. Comprobar con
-`{ checkupdates; yay -Qua; } | wc -l` antes de darlo por roto.
+**The updates indicator doesn't appear** when there is nothing pending:
+`shouldShow: Updates.available && Updates.count > 0`. Check with
+`{ checkupdates; yay -Qua; } | wc -l` before assuming it's broken.
 
-**Teclado retroiluminado:** si `brightnessctl --list` y `/sys/class/leds/` no
-muestran ningún `kbd_backlight`, el firmware no lo expone. El Pavilion 13-an1xxx
-carga `hp_wmi` correctamente (als, display, dock, tablet) pero no ofrece teclado.
+**Keyboard backlight:** if `brightnessctl --list` and `/sys/class/leds/` show no
+`kbd_backlight`, the firmware doesn't expose it. The Pavilion 13-an1xxx loads
+`hp_wmi` correctly (als, display, dock, tablet) but offers no keyboard control.
+
+**Orphaned trash files:** if a file exists in `~/.local/share/Trash/files/` but
+its `.trashinfo` does not in `info/`, **the graphical file manager will not list
+it** and the space is invisible. Check with `du -sh`, not the UI.

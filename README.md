@@ -1,75 +1,76 @@
 # My Arch Linux Setup
 
-Configuración reproducible de tres máquinas Arch con **Hyprland + end-4
-(illogical-impulse)**, más los scripts que sobreviven a las actualizaciones del
-proyecto y las lecciones que costaron encontrar.
+Reproducible configuration for three Arch machines running **Hyprland + end-4
+(illogical-impulse)**, plus the scripts that survive the project's updates and
+the lessons that were expensive to find.
 
-> **Cambio de escritorio (2026-08/09):** este repo documentaba HyDE. Las tres
-> máquinas migraron a [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland).
-> Quedan residuos de HyDE a propósito — algunos siguen siendo útiles
-> ([wallbash](docs/02-end4.md#colores-de-kitty), los temas de SDDM), otros están
-> anotados en [troubleshooting](docs/06-troubleshooting.md#residuos-de-hyde).
+> **Desktop change (2026-08/09):** this repo used to document HyDE. All three
+> machines migrated to [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland).
+> Some HyDE leftovers are kept on purpose — a few are still useful
+> ([wallbash](docs/02-end4.md#kitty-colors), the SDDM themes), the rest are
+> listed in [troubleshooting](docs/06-troubleshooting.md#hyde-leftovers).
 
 ---
 
-## Las máquinas
+## The machines
 
 | | **Titan** | **nomad** (Lenovo) | **pavilion** (HP) |
 |---|---|---|---|
-| Modelo | build propio | ThinkPad 20HR000FUS | Pavilion 13-an1xxx |
+| Model | custom build | ThinkPad 20HR000FUS | Pavilion 13-an1xxx |
 | CPU | Ryzen 7 8700F | i7-7600U | i5-1035G1 |
 | RAM | 30 GiB | 15 GiB | 7.5 GiB |
 | GPU | RTX 5060 Ti | HD Graphics 620 | Iris Plus G1 |
-| Disco | 953 G | 915 G | 238 G |
-| Red | ethernet | wifi | wifi |
-| Teclado | `es` | `latam` | `latam` |
-| Autologin | sí | no | no |
-| Tema SDDM | Corners (HyDE) | ii-sddm | ii-sddm |
-| Swap | zram 4G | zram 4G + 16G partición | zram 3.8G |
+| Disk | 953 G | 915 G | 238 G |
+| Network | ethernet | wifi | wifi |
+| Keyboard | `es` | `latam` | `latam` |
+| Autologin | yes | yes | no |
+| SDDM theme | Corners (HyDE) | ii-sddm | ii-sddm |
+| Swap | zram 4G | zram 4G + 16G partition | zram 3.8G |
 
-Todas en el mismo tailnet, así que se alcanzan por IP de Tailscale desde
-cualquier red. Ver [acceso remoto](docs/03-remote-access.md).
+All three are on the same tailnet, so they're reachable by Tailscale IP from any
+network. See [remote access](docs/03-remote-access.md).
 
 ---
 
-## Orden de instalación
+## Install order
 
-1. [Base: Arch + particiones](docs/01-base-install.md)
-2. [end-4 y el post-install](docs/02-end4.md) ← **el paso que importa**
-3. [Acceso remoto](docs/03-remote-access.md): SSH, VNC, RDP, Tailscale
-4. [Swap e hibernación](docs/04-swap-hibernate.md)
-5. [KVM/QEMU](docs/05-kvm-qemu.md) (opcional)
+1. [Base: Arch + partitions](docs/01-base-install.md)
+2. [end-4 and the post-install](docs/02-end4.md) ← **the step that matters**
+3. [Remote access](docs/03-remote-access.md): SSH, VNC, RDP, Tailscale
+4. [Swap and hibernation](docs/04-swap-hibernate.md)
+5. [KVM/QEMU](docs/05-kvm-qemu.md) (optional)
 
-Y cuando algo falle: [troubleshooting](docs/06-troubleshooting.md), que recoge
-los fallos reales de estas tres máquinas y no las causas que parecían obvias.
+And when something breaks: [troubleshooting](docs/06-troubleshooting.md), which
+collects the real failures of these three machines — not the causes that looked
+obvious at first.
 
 ---
 
 ## Scripts
 
-| Script | Qué hace |
+| Script | What it does |
 |---|---|
-| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reaplica los 11 ajustes que `./setup install` de end-4 sobrescribe. **Idempotente**, correr después de cada actualización de end-4. |
-| [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | Paleta de kitty derivada del wallpaper con k-means (4 tonos), en vez del acento único de end-4. |
-| [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Corrige la regla `NOPASSWD` insegura que instala ii-sddm-theme. |
+| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 15 tweaks that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
+| [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | kitty palette derived from the wallpaper via k-means (4 dominant colors), instead of end-4's single-accent rotation. |
+| [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
 
 ```bash
-# Después de cada `./setup install` de end-4:
+# After every end-4 `./setup install`:
 KB_LAYOUT=latam ~/.local/bin/end4-post-install.sh
 ```
 
-`KB_LAYOUT` por defecto es `es`; las laptops usan `latam`.
+`KB_LAYOUT` defaults to `es`; the laptops use `latam`.
 
 ---
 
-## Paquetes
+## Packages
 
-### Fuentes
+### Fonts
 ```bash
 paru -S ttf-cascadia-code-nerd noto-fonts-cjk ttf-dejavu noto-fonts-emoji
 ```
 
-### Programas
+### Programs
 ```bash
 paru -S alarm-clock-applet android-studio appimagelauncher arrpc btop deemix-gui \
   discord enpass-bin flutter-bin freerdp fsearch git gnome-disk-utility gparted \
@@ -80,16 +81,16 @@ paru -S alarm-clock-applet android-studio appimagelauncher arrpc btop deemix-gui
   tauon-music-box telegram-desktop thunderbird visual-studio-code-bin zen-browser-bin
 ```
 
-### Escritorio y acceso remoto
+### Desktop and remote access
 ```bash
 paru -S uwsm wayvnc rustdesk-bin hypr-rdp matugen fastfetch starship tailscale
 ```
 
-`uwsm` es **dependencia opcional** de Hyprland, así que no se instala sola —
-pero sin ella `graphical-session.target` no se activa y ningún servicio de
-usuario arranca. Ver [por qué importa](docs/06-troubleshooting.md#uwsm).
+`uwsm` is an **optional dependency** of Hyprland, so it is never pulled in
+automatically — but without it `graphical-session.target` never activates and no
+user service starts. See [why it matters](docs/06-troubleshooting.md#uwsm).
 
-### Servicios
+### Services
 ```bash
 systemctl enable --now plexmediaserver.service
 systemctl enable --now syncthing@x.service
@@ -99,7 +100,7 @@ systemctl enable --now tailscaled.service
 
 ---
 
-## Configuración de VS Code
+## VS Code
 
 ```json
 "terminal.integrated.fontFamily": "CaskaydiaCove Nerd Font"

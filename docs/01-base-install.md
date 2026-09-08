@@ -1,23 +1,25 @@
-# Instalación base
+# Base install
 
-Arch con **btrfs** y subvolúmenes, `systemd-boot`, y SDDM como gestor de sesión.
+Arch on **btrfs** with subvolumes, `systemd-boot`, and SDDM as the session
+manager.
 
 ---
 
-## Particionado
+## Partitioning
 
-Esquema de la Titan:
+Titan's layout:
 
-| Partición | Tamaño | Uso |
+| Partition | Size | Use |
 |---|---|---|
 | `nvme0n1p1` | 1 G | `/boot`, vfat |
-| `nvme0n1p2` | resto | btrfs |
+| `nvme0n1p2` | rest | btrfs |
 
-**Deja espacio sin asignar si piensas usar swap en partición.** La Titan se
-quedó sin hueco y hubo que ir a un [swapfile en btrfs](04-swap-hibernate.md#opción-b--swapfile-en-btrfs-cuando-no-hay-hueco-para-partición):
-encoger una raíz btrfs montada no se puede sin un USB live.
+**Leave unallocated space if you plan to use a swap partition.** Titan ran out
+of room and had to fall back to a
+[btrfs swapfile](04-swap-hibernate.md#option-b--btrfs-swapfile-when-theres-no-room-for-a-partition):
+you cannot shrink a mounted btrfs root without a live USB.
 
-### Subvolúmenes
+### Subvolumes
 
 ```
 @       →  /
@@ -26,10 +28,10 @@ encoger una raíz btrfs montada no se puede sin un USB live.
 @pkg    →  /var/cache/pacman/pkg
 ```
 
-`@log` y `@pkg` aparte para que no entren en los snapshots — son datos que no
-quieres restaurar.
+`@log` and `@pkg` are separate so they stay out of snapshots — they hold data
+you never want to restore.
 
-### Opciones de montaje
+### Mount options
 
 ```
 rw,relatime,compress=zstd:3,ssd,discard=async,space_cache=v2,subvol=/@
@@ -37,47 +39,47 @@ rw,relatime,compress=zstd:3,ssd,discard=async,space_cache=v2,subvol=/@
 
 ---
 
-## Vigilar el espacio en btrfs
+## Watching btrfs space
 
-`df` no basta. Lo que importa es **`Device unallocated`**:
+`df` is not enough. What matters is **`Device unallocated`**:
 
 ```bash
 btrfs filesystem usage /
 ```
 
-Si se acerca a cero, los metadatos no pueden crecer y da «No space left» con
-gigas aparentemente libres. Un `balance` devuelve espacio al pool:
+If it approaches zero, metadata cannot grow and you get "No space left" with
+gigabytes apparently free. A balance returns space to the pool:
 
 ```bash
 sudo btrfs balance start -dusage=50 /
 ```
 
-Cachés que engordan sin avisar: `~/.cache/{paru,yay,Shelly,hyde,dots-hyprland}`,
-`/var/cache/pacman/pkg`, y la **papelera**.
+Caches that grow silently: `~/.cache/{paru,yay,Shelly,hyde,dots-hyprland}`,
+`/var/cache/pacman/pkg`, and the **trash**.
 
-> La papelera puede tener archivos huérfanos: si existe el archivo en
-> `~/.local/share/Trash/files/` pero no su `.trashinfo` en `info/`, **el gestor
-> gráfico no lo lista** y ocupa espacio invisible. Comprobar con `du -sh`, no con
-> la interfaz.
+> The trash can hold orphaned files: if a file exists in
+> `~/.local/share/Trash/files/` but its `.trashinfo` doesn't in `info/`, **the
+> graphical manager won't list it** and the space is invisible. Check with
+> `du -sh`, not the UI.
 
 ---
 
-## Teclado
+## Keyboard
 
 ```bash
 sudo localectl set-x11-keymap latam pc105 "" terminate:ctrl_alt_bksp
 ```
 
-Escribe `/etc/X11/xorg.conf.d/00-keyboard.conf` y `/etc/vconsole.conf`. El
-greeter de SDDM **no lo hereda automáticamente**, ver
-[troubleshooting](06-troubleshooting.md#distribución-de-teclado-del-greeter).
+This writes `/etc/X11/xorg.conf.d/00-keyboard.conf` and `/etc/vconsole.conf`.
+The SDDM greeter **does not inherit it automatically** — see
+[troubleshooting](06-troubleshooting.md#greeter-keyboard-layout).
 
 ---
 
 ## Autologin
 
-Lo usan la Titan y (opcionalmente) las laptops. Sin él, **ningún servicio
-gráfico arranca hasta que alguien inicie sesión** — incluidos VNC y RDP.
+Used by Titan and the Lenovo. Without it, **no graphical service starts until
+someone signs in** — including VNC and RDP.
 
 ```bash
 sudo mkdir -p /etc/sddm.conf.d
@@ -85,15 +87,15 @@ printf '[Autologin]\nUser=x\nSession=hyprland-uwsm\nRelogin=false\n' \
   | sudo tee /etc/sddm.conf.d/zz-autologin.conf
 ```
 
-El prefijo `zz-` importa: SDDM lee ese directorio en orden alfabético y **gana el
-último**.
+The `zz-` prefix matters: SDDM reads that directory alphabetically and **the
+last file wins**.
 
-> Verifica que `uwsm` esté instalado **antes** de apuntar el autologin a
-> `hyprland-uwsm`. Si la sesión no existe, SDDM entra en bucle de reintentos.
+> Verify `uwsm` is installed **before** pointing autologin at `hyprland-uwsm`.
+> If the session doesn't exist, SDDM ends up in a retry loop.
 
 ---
 
-## Después
+## Next
 
-1. [end-4 y el post-install](02-end4.md)
-2. [Acceso remoto](03-remote-access.md) — habilita SSH **primero**
+1. [end-4 and the post-install](02-end4.md)
+2. [Remote access](03-remote-access.md) — enable SSH **first**

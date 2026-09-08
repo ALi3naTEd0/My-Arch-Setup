@@ -1,26 +1,26 @@
-# Máquinas virtuales
+# Virtual machines
 
-Dos caminos. **libvirt** es el clásico y el que está documentado aquí desde
-siempre; **`dockurr/windows`** es lo que usa Omarchy por debajo de su instalador
-de un clic, y no depende de Omarchy en absoluto.
+Two routes. **libvirt** is the classic one, documented here from the start;
+**`dockurr/windows`** is what sits underneath Omarchy's one-click installer, and
+it does not depend on Omarchy at all.
 
 ---
 
-## Opción A · libvirt + virt-manager
+## Option A · libvirt + virt-manager
 
 ```bash
 paru -S qemu-full virt-manager virt-viewer dmidecode dnsmasq bridge-utils \
         libguestfs ebtables vde2 openbsd-netcat
 ```
 
-### Servicios
+### Services
 
 ```bash
 sudo systemctl enable --now libvirtd.service
 sudo systemctl enable --now libvirtd.socket
 ```
 
-### Red «default»
+### The "default" network
 
 ```bash
 sudo usermod -aG libvirt $(whoami)
@@ -31,21 +31,20 @@ sudo systemctl restart libvirtd
 sudo virsh net-list --all
 ```
 
-El `usermod` requiere cerrar sesión para que tome efecto.
+The `usermod` needs a logout to take effect.
 
 ---
 
-## Opción B · Windows en contenedor (`dockurr/windows`)
+## Option B · Windows in a container (`dockurr/windows`)
 
-Lo que hay detrás del «instalador de Windows de un clic» de Omarchy no es código
-suyo: es la imagen **[`dockurr/windows`](https://github.com/dockur/windows)** más
-un script envoltorio ([`bin/omarchy-windows-vm`](https://github.com/basecamp/omarchy/blob/master/bin/omarchy-windows-vm), MIT).
-Corre Windows con KVM **dentro de un contenedor**, descarga el ISO sola, y se
-accede **por RDP**.
+What powers Omarchy's "one-click Windows installer" isn't their code: it's the
+**[`dockurr/windows`](https://github.com/dockur/windows)** image plus a wrapper
+script ([`bin/omarchy-windows-vm`](https://github.com/basecamp/omarchy/blob/master/bin/omarchy-windows-vm), MIT).
+It runs Windows with KVM **inside a container**, downloads the ISO by itself,
+and you connect **over RDP**.
 
-Ventaja sobre libvirt: cero configuración de red y de disco. Desventaja: hace
-falta Docker y el contenedor va **privilegiado** (KVM, `/dev/net/tun`,
-`NET_ADMIN`).
+Advantage over libvirt: no network or disk setup at all. Downside: it needs
+Docker, and the container runs **privileged** (KVM, `/dev/net/tun`, `NET_ADMIN`).
 
 ```yaml
 # docker-compose.yml
@@ -64,7 +63,7 @@ services:
     cap_add:
       - NET_ADMIN
     ports:
-      - 8006:8006    # consola web durante la instalación
+      - 8006:8006    # web console during install
       - 3389:3389/tcp
       - 3389:3389/udp
     volumes:
@@ -77,25 +76,25 @@ services:
 docker compose up -d
 ```
 
-Instalación en `http://localhost:8006`; después, RDP a `localhost:3389`.
+Install at `http://localhost:8006`; afterwards, RDP to `localhost:3389`.
 
-> **Ojo con el 3389:** es el mismo puerto que usa `hypr-rdp`. Si tienes el
-> servidor RDP de Hyprland corriendo, cambia uno de los dos o chocan.
+> **Careful with port 3389:** it's the same one `hypr-rdp` uses. If you run the
+> Hyprland RDP server too, change one of them or they clash.
 
-### Lo que sí vale la pena copiar de Omarchy
+### Worth copying from Omarchy
 
-Su script tiene una decisión de seguridad bien pensada y documentada en el
-propio código: el `docker-compose.yml` vive en un **directorio de root**
-(`/var/lib/omarchy/windows`), no en `$HOME`.
+Their script makes one security decision that's well reasoned and documented in
+the code itself: the `docker-compose.yml` lives in a **root-owned directory**
+(`/var/lib/omarchy/windows`), not in `$HOME`.
 
-> *«un `docker compose up` invocado por root nunca debe consumir un archivo que
-> un proceso corriendo como el usuario pudo haber reescrito para montar `/`
-> dentro del contenedor»*
+> *"a root-invoked `docker compose up` must never consume a file that a process
+> running as the user could have rewritten to bind-mount `/` into the
+> container"*
 
-Es el mismo tipo de fallo que corregimos en
-[`harden-ii-sddm.sh`](../scripts/harden-ii-sddm.sh): un objetivo privilegiado que
-el usuario puede reescribir. Si montas el compose a mano, tenlo en cuenta —
-sobre todo si lo lanzas con `sudo`.
+It's the same class of bug fixed in
+[`harden-ii-sddm.sh`](../scripts/harden-ii-sddm.sh): a privileged target the
+user can rewrite. If you assemble the compose file by hand, keep that in mind —
+especially if you launch it with `sudo`.
 
-Y el grupo `docker` es **equivalente a root**. Omarchy no mete al usuario en él
-por defecto; usa un prompt de polkit por invocación.
+And the `docker` group is **root-equivalent**. Omarchy does not add the user to
+it by default; it uses a polkit prompt per invocation instead.

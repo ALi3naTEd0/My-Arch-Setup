@@ -1,24 +1,24 @@
-# Acceso remoto
+# Remote access
 
-Tres vías en paralelo, a propósito: si una se rompe, quedan dos.
+Three paths in parallel, on purpose: if one breaks, two remain.
 
-| Vía | Puerto | Para qué |
+| Path | Port | For what |
 |---|---|---|
-| **SSH** | 22 | la red de seguridad — funciona sin sesión gráfica |
-| **RDP** (hypr-rdp) | 3389 | trabajo diario: H.264, casi sin lag |
-| **VNC** (wayvnc) | 5900 | respaldo, clientes que solo hablan VNC |
+| **SSH** | 22 | the safety net — works with no graphical session |
+| **RDP** (hypr-rdp) | 3389 | daily work: H.264, nearly no lag |
+| **VNC** (wayvnc) | 5900 | fallback, clients that only speak VNC |
 
-> **SSH es lo que hace reversible todo lo demás.** Habilítalo y verifica que
-> entras **antes** de tocar la sesión gráfica. Si Hyprland, el greeter o el
-> autologin se rompen, SSH sigue entrando. Salvó estas máquinas tres veces en un
-> solo día.
+> **SSH is what makes everything else reversible.** Enable it and verify you can
+> get in **before** touching the graphical session. If Hyprland, the greeter or
+> autologin break, SSH still works. It saved these machines three times in a
+> single day.
 
 ---
 
 ## Tailscale
 
-Con el tailnet, las máquinas se alcanzan desde cualquier red sin abrir puertos
-en el router.
+With the tailnet, machines are reachable from any network without opening ports
+on the router.
 
 ```bash
 sudo systemctl enable --now tailscaled
@@ -26,7 +26,7 @@ sudo tailscale up
 tailscale status
 ```
 
-Se pierde al reinstalar el sistema — hay que volver a hacer `tailscale up`.
+It is lost when reinstalling the OS — you have to run `tailscale up` again.
 
 ---
 
@@ -36,7 +36,7 @@ Se pierde al reinstalar el sistema — hay que volver a hacer `tailscale up`.
 sudo systemctl enable --now sshd
 ```
 
-Autorizar una clave desde otra máquina:
+Authorize a key from another machine:
 
 ```bash
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
@@ -44,8 +44,8 @@ echo 'ssh-ed25519 AAAA…' >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
-Para comandos con `sudo` a través de SSH hace falta **`-t`**, que asigna una
-terminal para que pueda pedir la contraseña:
+Running `sudo` commands over SSH needs **`-t`**, which allocates a terminal so
+it can prompt for the password:
 
 ```bash
 ssh -t x@192.168.1.248 "sudo systemctl restart sddm"
@@ -55,13 +55,13 @@ ssh -t x@192.168.1.248 "sudo systemctl restart sddm"
 
 ## RDP · hypr-rdp
 
-[MuNeNICK/hypr-rdp](https://github.com/MuNeNICK/hypr-rdp) — servidor RDP nativo
-para Hyprland, en Rust. Requiere Hyprland 0.54+.
+[MuNeNICK/hypr-rdp](https://github.com/MuNeNICK/hypr-rdp) — native RDP server
+for Hyprland, written in Rust. Requires Hyprland 0.54+.
 
-No necesita el portal `RemoteDesktop` (que
-`xdg-desktop-portal-hyprland` **no implementa**): captura con
-`wlr-screencopy-v1` e inyecta entrada con los protocolos de teclado y puntero
-virtuales de Wayland. Por eso funciona donde `krdp` no.
+It does not need the `RemoteDesktop` portal (which
+`xdg-desktop-portal-hyprland` **does not implement**): it captures with
+`wlr-screencopy-v1` and injects input through Wayland's virtual keyboard and
+pointer protocols. That's why it works where `krdp` cannot.
 
 ```bash
 paru -S hypr-rdp
@@ -73,18 +73,18 @@ paru -S hypr-rdp
 bind = "0.0.0.0:3389"
 
 username = "x"
-password = "…"          # texto plano -> chmod 600
+password = "…"          # plaintext -> chmod 600
 
-output = "eDP-1"        # sin esto crea una pantalla virtual aparte
+output = "eDP-1"        # without this it creates a separate virtual display
 capture_mode = "wlr"
 
-fps = 60                # el default es 30
-bitrate = 20000000      # 30000000 si vas por cable
-quality = 20            # menor = mejor
-egfx_codec = "avc444"   # 4:4:4; "avc420" hace el texto borroso
+fps = 60                # default is 30
+bitrate = 20000000      # 30000000 on wired
+quality = 20            # lower = better
+egfx_codec = "avc420"   # see the codec note below
 h264_backend = "auto"
 
-keyboard_layout_policy = "compositor"   # ver aviso abajo
+keyboard_layout_policy = "compositor"   # see warning below
 audio_mode = "redirect"
 ```
 
@@ -92,11 +92,29 @@ audio_mode = "redirect"
 chmod 600 ~/.config/hypr-rdp/config.toml
 ```
 
-> **`keyboard_layout_policy` debe ir en `"compositor"`.** Con `"client"` aplica
-> el layout que reporte el cliente al teclado virtual, ese teclado queda
-> `main=True` y **tapa al físico**: la sesión entera se pone en US.
+> **`keyboard_layout_policy` must be `"compositor"`.** With `"client"` it
+> applies whatever layout the client reports to the virtual keyboard, that
+> keyboard becomes `main=True` and **shadows the physical one**: the whole
+> session switches to US.
 
-### Servicio
+### Codec: pick per GPU
+
+| GPU | H.264 encoding | Codec |
+|---|---|---|
+| Intel (QuickSync) | VA-API, **4:2:0 only** | `avc420` |
+| NVIDIA + `libva-nvidia-driver` | **decode only** → software | `avc444` works |
+
+`avc444` gives crisp text (full chroma) but **no Intel encoder supports it**.
+Check before choosing:
+
+```bash
+vainfo | grep -iE "H264.*Enc"
+```
+
+On Intel, `avc420` is also the better performance choice: it keeps encoding on
+QuickSync instead of falling back to libx264 on the CPU.
+
+### Service
 
 ```ini
 # ~/.config/systemd/user/hypr-rdp.service
@@ -118,20 +136,11 @@ WantedBy=graphical-session.target
 systemctl --user enable --now hypr-rdp
 ```
 
-Genera un certificado TLS autofirmado en `~/.config/hypr-rdp/` al arrancar; el
-cliente avisará de que no es de confianza la primera vez.
-
-### Codificación por hardware
-
-`h264_backend = "auto"` intenta VA-API y cae a software.
-
-| GPU | Resultado |
-|---|---|
-| Intel (QuickSync) | VA-API real, codifica por hardware |
-| NVIDIA + `libva-nvidia-driver` | **solo decodifica** — acaba en software |
+It generates a self-signed TLS certificate in `~/.config/hypr-rdp/` on startup;
+the client will warn about it the first time.
 
 ```bash
-journalctl --user -u hypr-rdp.service -f    # dice cuál eligió al conectar
+journalctl --user -u hypr-rdp.service -f    # says which encoder it picked
 ```
 
 ---
@@ -158,18 +167,24 @@ RestartSec=5
 WantedBy=graphical-session.target
 ```
 
-Los cuatro flags importan:
+All four flags matter:
 
-| Flag | Por qué |
+| Flag | Why |
 |---|---|
-| `-g` | codificación acelerada por GPU. **Sin esto todo se comprime en CPU** y se nota muchísimo |
-| `-f 60` | tope de fotogramas; el default deja las animaciones a tirones |
-| `-k <layout>` | wayvnc traduce keysyms con **su propio** keymap, no el de Hyprland. Sin esto la ñ no funciona |
-| `-p` | contadores de rendimiento al log |
+| `-g` | GPU-accelerated encoding. **Without it everything is compressed on the CPU** and the difference is obvious |
+| `-f 60` | frame cap; the default leaves animations stuttering |
+| `-k <layout>` | wayvnc translates keysyms with **its own** keymap, not Hyprland's. Without this, ñ doesn't work |
+| `-p` | performance counters in the log |
 
-> `wayvnc` no se autentica por defecto. Escuchando en `0.0.0.0`, cualquiera en
-> la red llega al escritorio. En una red propia puede ser aceptable; en una wifi
-> ajena no. Alternativa: enlazar solo a la IP del tailnet.
+> `wayvnc` does not authenticate by default. Listening on `0.0.0.0`, anyone on
+> the network reaches the desktop. Acceptable on your own network, not on
+> someone else's wifi. Alternative: bind only to the tailnet IP.
+
+### Running VNC and RDP at the same time
+
+Both capture the same output through `wlr-screencopy-v1` and **they coexist
+fine** — all three machines run both services enabled. If frames stall, look at
+the codec (see above) before suspecting a capture conflict.
 
 ---
 
@@ -179,33 +194,36 @@ Los cuatro flags importan:
 paru -S rustdesk-bin
 ```
 
-Códecs de vídeo modernos (VP8/VP9/H.264) y pasa la tecla `Super` sin
-configuración — útil porque en end-4 casi todos los atajos son `SUPER+algo`. Con
-Tailscale se conecta directo por IP, sin pasar por sus servidores públicos.
+Modern video codecs (VP8/VP9/H.264) and it passes the `Super` key without
+configuration — handy because nearly every end-4 shortcut is `SUPER+something`.
+With Tailscale it connects directly by IP, never touching their public relays.
 
 ---
 
-## Depende de uwsm
+## Everything depends on uwsm
 
-**Los tres servicios cuelgan de `graphical-session.target`**, que solo se activa
-bajo uwsm. Sin uwsm ninguno arranca.
+**All three services hang off `graphical-session.target`**, which only activates
+under uwsm. Without uwsm none of them start.
 
 ```bash
 systemctl --user is-active graphical-session.target
 ```
 
-Y sin autologin, la máquina se queda en el login: **ningún servicio gráfico
-existe hasta que alguien inicie sesión**. Si vas a encender un equipo y
-conectarte en remoto, necesitas autologin. Solo SSH funciona sin sesión.
+And without autologin the machine sits at the login screen: **no graphical
+service exists until someone signs in**. If you plan to power on a machine and
+connect remotely, you need autologin. Only SSH works without a session.
+
+Same applies to suspend: a suspended machine is **off the network entirely**,
+not merely locked. Wake-on-LAN over wifi generally does not work.
 
 ---
 
-## Antes de culpar al protocolo, mide la red
+## Before blaming the protocol, measure the network
 
 ```bash
 ping -c 40 -i 0.05 -q <ip>
 ```
 
-Lo que arruina la fluidez no es el caudal sino el **jitter** (`mdev`). Ver los
-números medidos y las causas en
-[troubleshooting](06-troubleshooting.md#pero-primero-mide-la-red).
+What ruins smoothness is not throughput but **jitter** (`mdev`). Measured
+numbers and causes in
+[troubleshooting](06-troubleshooting.md#but-measure-the-network-first).
