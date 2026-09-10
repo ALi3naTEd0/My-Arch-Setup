@@ -52,7 +52,7 @@ obvious at first.
 | Script | What it does |
 |---|---|
 | [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 16 tweaks that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
-| [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | kitty palette derived from the wallpaper via k-means (4 dominant colors), instead of end-4's single-accent rotation. |
+| [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Not in use.** kitty palette from the wallpaper via k-means. Kept for reference; `WALLBASH=1` reinstates it. |
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
 | [`agent-usage-claude`](scripts/agent-usage-claude), [`agent-usage-codex`](scripts/agent-usage-codex) | Print one JSON usage record per AI coding agent. Vendored from Omarchy (MIT); feed the [bar widget](docs/07-bar-widgets.md). |
 

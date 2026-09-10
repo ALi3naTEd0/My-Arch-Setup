@@ -160,41 +160,55 @@ if [ -f "$KB" ] && ! grep -q 'SUPER + A", hl.dsp.global("quickshell:searchToggle
         || echo "   [FAIL] original bind not found -- check by hand"
 else echo "   [skip] already applied"; fi
 
-echo "== 8. kitty colors, wallbash style (4 tones from the wallpaper) =="
-# Vendored copies of the extractor and template: without these you depend on
-# HyDE staying installed. Taken from HyDE only if the copies don't exist yet.
-mkdir -p "$HOME/.local/lib/wallbash"
-for pair in "wallbash.sh:$HOME/.local/lib/hyde/wallbash.sh" \
-            "kitty.dcol:$HOME/HyDE/Configs/.local/share/wallbash/theme/kitty.dcol"; do
-    dst="$HOME/.local/lib/wallbash/${pair%%:*}"; src="${pair#*:}"
-    if [ ! -f "$dst" ] && [ -f "$src" ]; then cp "$src" "$dst"; echo "   [ok] copied $(basename "$dst") from HyDE"; fi
-done
-[ -f "$HOME/.local/lib/wallbash/wallbash.sh" ] && chmod +x "$HOME/.local/lib/wallbash/wallbash.sh"
-
-# a) include in kitty.conf, AFTER end-4's so it wins.
-#    No trailing comment: kitty swallows the rest of the line as the filename.
-if [ -f "$C/kitty/kitty.conf" ] && ! grep -q 'wallbash-theme.conf' "$C/kitty/kitty.conf"; then
-    sed -i '/user\/generated\/terminal\/kitty-theme.conf/a # wallbash: goes AFTER end-4\x27s so it wins. No trailing comment:\n# kitty takes the rest of the line as part of the filename.\ninclude wallbash-theme.conf' "$C/kitty/kitty.conf"
-    echo "   [ok] include added to kitty.conf"
-else echo "   [skip] include already present"; fi
-
-# b) hook it to the wallpaper change
-AC="$QS/scripts/colors/applycolor.sh"
-if [ -f "$AC" ] && ! grep -q 'wallbash-kitty' "$AC"; then
-    cat >> "$AC" <<'EOF'
-
-# kitty palette, wallbash style (4 dominant colors from the wallpaper instead
-# of a fixed palette rotated toward one accent). Runs last so its include wins.
-# If the script is missing, nothing happens.
-if [ -x "$HOME/.local/bin/wallbash-kitty.sh" ]; then
-  "$HOME/.local/bin/wallbash-kitty.sh" >/dev/null 2>&1 &
-fi
-EOF
-    echo "   [ok] hook added to applycolor.sh"
-else echo "   [skip] hook already present"; fi
-
-if [ ! -x "$HOME/.local/bin/wallbash-kitty.sh" ]; then
-    echo "   [WARN] ~/.local/bin/wallbash-kitty.sh missing -- kitty will use end-4's palette"
+echo "== 8. kitty colors =="
+# end-4 generates the terminal palette itself (scripts/colors/), and that is what
+# these machines use. There used to be a wallbash pipeline here -- HyDE's k-means
+# extractor writing a second theme file that kitty included AFTER end-4's so it
+# would win. It worked, but it was a parallel pipeline fighting the built-in one,
+# and it kept a HyDE dependency alive long after the migration.
+#
+# Set WALLBASH=1 to reinstate it (the scripts must already be in
+# ~/.local/bin/wallbash-kitty.sh and ~/.local/lib/wallbash/).
+if [ "${WALLBASH:-0}" = "1" ]; then
+    if [ -f "$C/kitty/kitty.conf" ] && ! grep -q 'wallbash-theme.conf' "$C/kitty/kitty.conf"; then
+        sed -i '/user\/generated\/terminal\/kitty-theme.conf/a # wallbash: goes AFTER end-4\x27s so it wins. No trailing comment:\n# kitty takes the rest of the line as part of the filename.\ninclude wallbash-theme.conf' "$C/kitty/kitty.conf"
+        echo "   [ok] wallbash include added (WALLBASH=1)"
+    else echo "   [skip] include already present"; fi
+    AC="$QS/scripts/colors/applycolor.sh"
+    if [ -f "$AC" ] && ! grep -q 'wallbash-kitty' "$AC"; then
+        printf '\n# wallbash palette, hooked to the wallpaper change.\nif [ -x "$HOME/.local/bin/wallbash-kitty.sh" ]; then\n  "$HOME/.local/bin/wallbash-kitty.sh" >/dev/null 2>&1 &\nfi\n' >> "$AC"
+        echo "   [ok] wallbash hook added"
+    else echo "   [skip] hook already present"; fi
+else
+    # Default: make sure no wallbash leftovers override end-4's own palette.
+    removed=0
+    if grep -q 'wallbash-theme.conf' "$C/kitty/kitty.conf" 2>/dev/null; then
+        cp "$C/kitty/kitty.conf" "$C/kitty/kitty.conf.bak-wallbash"
+        python3 - <<'PYEOF'
+import os, re
+p = os.path.expanduser("~/.config/kitty/kitty.conf")
+s = open(p).read()
+s = re.sub(r"(?m)^# wallbash:.*\n(^# kitty takes.*\n)?", "", s)
+s = re.sub(r"(?m)^include wallbash-theme\.conf\n", "", s)
+open(p, "w").write(s)
+PYEOF
+        removed=1
+    fi
+    AC="$QS/scripts/colors/applycolor.sh"
+    if grep -q 'wallbash-kitty' "$AC" 2>/dev/null; then
+        cp "$AC" "$AC.bak-wallbash"
+        python3 - "$AC" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+s = re.sub(r"\n# (kitty palette, wallbash style|wallbash palette|Paleta de kitty).*?\nfi\n", "\n", s, flags=re.S)
+open(p, "w").write(s)
+PYEOF
+        removed=1
+    fi
+    rm -f "$C/kitty/wallbash-theme.conf"
+    [ "$removed" = "1" ] && echo "   [ok] wallbash removed; end-4's palette wins" \
+                         || echo "   [skip] already using end-4's palette"
 fi
 
 echo "== 9. Updates indicator in the bar (the ii panel family ships none) =="
@@ -435,8 +449,11 @@ p = os.path.expanduser("~/.config/illogical-impulse/config.json")
 if not os.path.isfile(p):
     print("   [skip] config.json missing"); raise SystemExit
 d = json.load(open(p))
-cmd = ("kitty zsh -ic 'yay -Syu; echo; echo \"── Update finished. "
-       "Press Enter to close ──\"; read'")
+# --hold keeps the window open whatever happens inside: if yay fails
+# instantly you see the error instead of a flash. The stock command is
+# `pkexec pacman -Syu` inside fish, which cannot prompt for a password
+# because pkexec does not pass a terminal, and ignores the AUR besides.
+cmd = 'kitty --hold zsh -ic "yay -Syu"' 
 changed = []
 # The stock one is `pkexec pacman -Syu` inside fish and does NOT work: pkexec
 # does not pass a terminal to an interactive command. It also ignores the AUR.
