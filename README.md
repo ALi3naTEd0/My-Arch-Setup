@@ -7,7 +7,7 @@ the lessons that were expensive to find.
 > **Desktop change (2026-08/09):** this repo used to document HyDE. All three
 > machines migrated to [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland).
 > Some HyDE leftovers are kept on purpose — a few are still useful
-> ([wallbash](docs/02-end4.md#kitty-colors), the SDDM themes), the rest are
+> (the SDDM themes), the rest are
 > listed in [troubleshooting](docs/06-troubleshooting.md#hyde-leftovers).
 
 ---
@@ -52,7 +52,7 @@ obvious at first.
 | Script | What it does |
 |---|---|
 | [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 18 steps that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
-| [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Not in use.** kitty palette from the wallpaper via k-means. Kept for reference; `WALLBASH=1` reinstates it. |
+| [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Not in use, and no longer needed.** It existed to work around end-4's monochrome terminal palette, which turned out to be a [setting](docs/06-troubleshooting.md#the-terminal-palette-really-is-two-colors). Kept for reference. |
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
 | [`term-hues.py`](scripts/term-hues.py) | Prints what each ansi hue becomes for a given `harmony`/`harmonizeThreshold`. Run with the illogical-impulse venv python. |
 | [`agent-usage-claude`](scripts/agent-usage-claude), [`agent-usage-codex`](scripts/agent-usage-codex) | Print one JSON usage record per AI coding agent. Vendored from Omarchy (MIT); feed the [bar widget](docs/07-bar-widgets.md). |
