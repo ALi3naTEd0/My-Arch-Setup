@@ -51,7 +51,7 @@ obvious at first.
 
 | Script | What it does |
 |---|---|
-| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 18 tweaks that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
+| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 18 steps that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
 | [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Not in use.** kitty palette from the wallpaper via k-means. Kept for reference; `WALLBASH=1` reinstates it. |
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
 | [`term-hues.py`](scripts/term-hues.py) | Prints what each ansi hue becomes for a given `harmony`/`harmonizeThreshold`. Run with the illogical-impulse venv python. |
@@ -63,12 +63,6 @@ KB_LAYOUT=latam ~/.local/bin/end4-post-install.sh
 ```
 
 `KB_LAYOUT` defaults to `es`; the laptops use `latam`.
-
-## Config
-
-| File | Where it goes |
-|---|---|
-| [`config/fastfetch/config.jsonc`](config/fastfetch/config.jsonc) | `~/.config/fastfetch/` — HyDE's layout without its dependencies, coloured by end-4's palette. Installed by step 17. |
 
 ---
 

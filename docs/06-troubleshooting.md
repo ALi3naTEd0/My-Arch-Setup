@@ -405,76 +405,42 @@ bash ~/.config/quickshell/ii/scripts/colors/applycolor.sh
 
 ## fastfetch
 
-### Two colors on a fresh install, HyDE's colors on an old one
+### Two colors on a fresh install, HyDE's layout on an old one
 
-Three machines gave three different results for the same command:
+**end-4 ships no fastfetch config and prints no banner when a terminal opens.**
+The HP — a clean end-4 install with no HyDE zsh — opens straight to the prompt,
+and that is the reference the other two should match.
 
-| | `~/.config/fastfetch/config.jsonc` | what you see |
+What made them differ was HyDE, in two places, and neither is obvious:
+
+| | what was there | effect |
 |---|---|---|
-| Titan | renamed to `.bak-hyde` | fastfetch's builtin layout |
-| Lenovo | **still HyDE's** | HyDE layout, calls `fastfetch.sh logo` |
-| HP | never existed | default Arch logo — two colors |
+| Titan | `user.zsh` runs `fastfetch --logo-type kitty` | banner on every terminal |
+| Lenovo | `config.jsonc`, HyDE's, calling `fastfetch.sh logo` | HyDE layout |
+| HP | nothing | end-4's actual behaviour |
 
-With no config, fastfetch draws its builtin Arch logo — cyan plus the default key
-color. Nothing is reading the wallpaper palette because nothing asked it to.
+Step 17 moves both aside (`.hyde-layout-bak`, `.bak-banner`).
 
-But installing the shared config only got it halfway, because there is a second,
-unrelated cause with the same symptom — see below.
+**The alias is a decoy.** `conf.d/hyde/terminal.zsh` does define
+`alias fastfetch='fastfetch --logo-type kitty'`, and removing it changes nothing
+you can see — the banner you get when a terminal opens is never typed, so it
+never goes through an alias. It comes from `$ZDOTDIR/user.zsh`, with the flag
+written out literally. And `terminal.zsh` sources `user.zsh` *itself*, at line
+192, inside `conf.d/00-hyde.zsh` — long before `conf.d/99-end4.zsh` is reached.
+An `unalias` there cannot touch something that already ran. Step 1 still drops
+the alias, but only for what you type by hand.
 
-Step 17 of [`end4-post-install.sh`](../scripts/end4-post-install.sh) installs one
-[`config.jsonc`](../config/fastfetch/config.jsonc) on all three: HyDE's layout
-with its two dependencies removed (`fastfetch.sh logo` → builtin logo, nothing
-under `~/.config/hyde`).
+> The Titan's `ZDOTDIR` is `~/.config/zsh` (set in `~/.zshenv`), so **`~/.zshrc`
+> is never sourced there** — it's a leftover oh-my-zsh file that reads as live
+> and isn't. The live one is `~/.config/zsh/.zshrc`.
 
-**Every color in it is a named ansi color** — `red`, `green`, `yellow`, `blue`,
-`magenta`, `cyan` — which are palette slots 1–6, exactly the slots
-`applycolor.sh` repaints from the wallpaper. So the config follows the theme on
-its own and never needs regenerating. Hardcoding hex is what would freeze it,
-which is the same mistake that froze `sequences.txt` above.
+### "Only two colors" is not fastfetch
 
-### Same config, different logo
-
-The Titan kept drawing the large Arch logo after the shared config was in place,
-while the Lenovo drew the small one from the same file. The config was not the
-problem — the shell was:
-
-```bash
-grep -rn "alias fastfetch" ~/.config/zsh/conf.d/hyde/terminal.zsh
-# alias fastfetch='fastfetch --logo-type kitty'
-```
-
-`--logo-type kitty` overrides `logo.type` in the config. It comes from **HyDE's
-zsh framework**, which the Titan still runs (see below); the laptops don't have
-it, so they never saw the override.
-
-**But removing the alias changes nothing**, which is the part worth writing
-down. The fastfetch you see when a terminal opens is not typed, so it never goes
-through an alias — it comes from `$ZDOTDIR/user.zsh`, with the flag written out
-literally:
-
-```zsh
-if do_render "image"; then
-    fastfetch --logo-type kitty
-fi
-```
-
-And `conf.d/hyde/terminal.zsh` sources `user.zsh` *itself*, at line 192 — inside
-`conf.d/00-hyde.zsh`, long before `conf.d/99-end4.zsh` is reached. An `unalias`
-there cannot touch something that already ran. Step 17 edits the line; step 1
-still drops the alias, for when you type `fastfetch` by hand.
-
-Keep the `do_render "image"` guard when editing it: it restricts the banner to
-kitty/konsole/ghostty/WezTerm, which is what keeps fastfetch out of every ssh
-login and VS Code terminal.
-
-> Worth knowing when reading any zsh problem on these machines: the Titan's
-> `ZDOTDIR` is `~/.config/zsh` (set in `~/.zshenv`), so **`~/.zshrc` is never
-> sourced there** — it's a leftover oh-my-zsh file that looks live and isn't.
-> The live one is `~/.config/zsh/.zshrc`.
-
-The `hyprctl splash` module is guarded on `$HYPRLAND_INSTANCE_SIGNATURE`:
-unguarded it prints *"is hyprland running?"* as the first line of every fastfetch
-over SSH, and `2>/dev/null` does not catch it — `hyprctl` writes that to stdout.
+With no config, fastfetch draws its builtin logo and a plain key/value list. If
+that looks two-toned, the palette really is two-toned — see the next section.
+No fastfetch config can fix it, and writing one to paper over it is the wrong
+repair: it hides an end-4 setting that is wrong for every terminal program, not
+just this one.
 
 ---
 

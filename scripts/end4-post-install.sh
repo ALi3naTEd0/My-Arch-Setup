@@ -22,10 +22,10 @@ ZSH
 else echo "   [skip] zsh override already present (or no conf.d)"; fi
 
 # HyDE's conf.d/hyde/terminal.zsh defines `alias fastfetch='fastfetch
-# --logo-type kitty'`. That flag overrides `logo.type: small` in the shared
-# fastfetch config (step 17), so a machine that still runs HyDE's zsh draws a
-# different logo from one that does not -- with the same config file. 99-end4
-# is sourced after conf.d/hyde/*, so the alias already exists here.
+# --logo-type kitty'`, so typing `fastfetch` on a machine that still runs HyDE's
+# zsh renders the logo as a kitty image -- not what a clean end-4 install does.
+# 99-end4 is sourced after conf.d/hyde/*, so the alias already exists here.
+# This only covers what you TYPE; the startup banner is step 17.
 if [ -f "$C/zsh/conf.d/99-end4.zsh" ] && ! grep -q 'unalias fastfetch' "$C/zsh/conf.d/99-end4.zsh"; then
     cat >> "$C/zsh/conf.d/99-end4.zsh" <<'ZSH'
 
@@ -580,175 +580,48 @@ else:
     print("   [ok] inserted into BarContent.qml")
 PYEOF
 
-echo "== 17. fastfetch: one config on every machine, coloured by end-4 =="
-# Three machines, three different results before this:
-#   Titan   - no config at all (HyDE's was renamed away) -> builtin layout
-#   Lenovo  - HyDE's config still in place, calling `fastfetch.sh logo`
-#   HP      - fresh install, no config -> default Arch logo, two colours
+echo "== 17. fastfetch: end-4 behaviour, not HyDE's =="
+# end-4 ships NO fastfetch config and prints no banner when a terminal opens.
+# The HP -- a clean end-4 install with no HyDE zsh -- does exactly that, and the
+# other two should match it. What made them differ was HyDE, in two places:
 #
-# The layout below is HyDE's, minus its two dependencies. Everything is a NAMED
-# ansi colour (red/green/yellow/blue/magenta/cyan = palette slots 1..6), which
-# is precisely what applycolor.sh repaints from the wallpaper -- so it tracks
-# the theme by itself. Hardcoding hex is what would freeze it.
+#   a) ~/.config/fastfetch/config.jsonc, HyDE's layout, which also called
+#      `fastfetch.sh logo` (a HyDE script).
+#   b) $ZDOTDIR/user.zsh, which runs fastfetch at every interactive startup.
+#      conf.d/hyde/terminal.zsh sources user.zsh itself at line 192, inside
+#      conf.d/00-hyde.zsh -- long before conf.d/99-end4.zsh, so no override
+#      placed there can reach it.
+#
+# Both are moved aside, not deleted: the .bak files hold HyDE's versions.
+# The colours themselves are step 18; they are a separate problem entirely.
 FF="$C/fastfetch/config.jsonc"
-mkdir -p "$C/fastfetch"
-if [ -f "$FF" ] && grep -q 'fastfetch.sh logo' "$FF"; then
-    cp "$FF" "$FF.bak-hyde"
-    echo "   backing up HyDE's config -> $(basename "$FF").bak-hyde"
-fi
-if [ -f "$FF" ] && ! grep -q 'fastfetch.sh logo' "$FF" && grep -q 'hyprctl splash' "$FF"; then
-    echo "   [skip] already installed"
-else
-    cat > "$FF" <<'FFEOF'
-/*
-fastfetch for end-4 (illogical-impulse).
+if [ -f "$FF" ]; then
+    mv "$FF" "$FF.hyde-layout-bak"
+    echo "   [ok] config.jsonc moved aside -> $(basename "$FF").hyde-layout-bak"
+else echo "   [skip] no fastfetch config (this is end-4's default)"; fi
 
-Layout is HyDE's, with its two dependencies removed:
-  - the logo came from `fastfetch.sh logo` (a HyDE script) -> builtin logo
-  - nothing here reads ~/.config/hyde or wallbash any more
-
-Every colour is a NAMED ansi colour (red/green/yellow/blue/magenta/cyan =
-palette slots 1..6). end-4 repaints exactly those slots from the wallpaper in
-scripts/colors/applycolor.sh, so this config follows the theme on its own and
-never needs regenerating. Hardcoding hex here is what would freeze it.
-*/
-{
-  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
-  "logo": {
-    "type": "small",
-    "padding": { "top": 1, "right": 3 }
-  },
-  "display": {
-    "separator": " : "
-  },
-  "modules": [
-    {
-      "type": "command",
-      "key": "  ",
-      "keyColor": "blue",
-      "text": "[ -n \"$HYPRLAND_INSTANCE_SIGNATURE\" ] && hyprctl splash 2>/dev/null || true"
-    },
-    {
-      "type": "custom",
-      "format": "┌──────────────────────────────────────────┐"
-    },
-    {
-      "type": "chassis",
-      "key": "  󰇺 Chassis",
-      "format": "{1} {2} {3}"
-    },
-    {
-      "type": "os",
-      "key": "  󰣇 OS",
-      "format": "{2}",
-      "keyColor": "red"
-    },
-    {
-      "type": "kernel",
-      "key": "   Kernel",
-      "format": "{2}",
-      "keyColor": "red"
-    },
-    {
-      "type": "packages",
-      "key": "  󰏗 Packages",
-      "keyColor": "green"
-    },
-    {
-      "type": "display",
-      "key": "  󰍹 Display",
-      "format": "{1}x{2} @ {3}Hz [{7}]",
-      "keyColor": "green"
-    },
-    {
-      "type": "terminal",
-      "key": "   Terminal",
-      "keyColor": "yellow"
-    },
-    {
-      "type": "wm",
-      "key": "  󱗃 WM",
-      "format": "{2}",
-      "keyColor": "yellow"
-    },
-    {
-      "type": "custom",
-      "format": "└──────────────────────────────────────────┘"
-    },
-    "break",
-    {
-      "type": "title",
-      "key": "  ",
-      "format": "{6} {7} {8}"
-    },
-    {
-      "type": "custom",
-      "format": "┌──────────────────────────────────────────┐"
-    },
-    {
-      "type": "cpu",
-      "format": "{1} @ {7}",
-      "key": "   CPU",
-      "keyColor": "blue"
-    },
-    {
-      "type": "gpu",
-      "format": "{1} {2}",
-      "key": "  󰊴 GPU",
-      "keyColor": "blue"
-    },
-    {
-      "type": "gpu",
-      "format": "{3}",
-      "key": "   GPU Driver",
-      "keyColor": "magenta"
-    },
-    {
-      "type": "memory",
-      "key": "   Memory ",
-      "keyColor": "magenta"
-    },
-    {
-      "type": "disk",
-      "key": "  󱦟 OS Age ",
-      "folders": "/",
-      "keyColor": "red",
-      "format": "{days} days"
-    },
-    {
-      "type": "uptime",
-      "key": "  󱫐 Uptime ",
-      "keyColor": "red"
-    },
-    {
-      "type": "custom",
-      "format": "└──────────────────────────────────────────┘"
-    },
-    {
-      "type": "colors",
-      "paddingLeft": 2,
-      "symbol": "circle"
-    },
-    "break"
-  ]
-}
-FFEOF
-    echo "   [ok] $FF"
-fi
-
-# On a machine that still runs HyDE's zsh, the fastfetch you actually see is not
-# the one you type: conf.d/hyde/terminal.zsh sources $ZDOTDIR/user.zsh, which
-# runs `fastfetch --logo-type kitty` at every interactive startup. That literal
-# flag -- not the alias handled in step 1 -- overrides logo.type in the config
-# above, and it runs long before conf.d/99-end4.zsh is sourced, so unaliasing
-# cannot reach it. Drop the flag; keep the do_render guard so fastfetch stays
-# out of ssh logins and VS Code terminals.
 UZ="$C/zsh/user.zsh"
-if [ -f "$UZ" ] && grep -q 'fastfetch --logo-type kitty' "$UZ"; then
-    cp "$UZ" "$UZ.bak-logotype"
-    sed -i 's/fastfetch --logo-type kitty/fastfetch/' "$UZ"
-    echo "   [ok] startup fastfetch in user.zsh no longer forces --logo-type"
-else echo "   [skip] user.zsh startup call already clean (or no HyDE zsh)"; fi
+if [ -f "$UZ" ] && grep -qE '^[[:space:]]*fastfetch( |$)|fastfetch --logo-type' "$UZ"; then
+    cp "$UZ" "$UZ.bak-banner"
+    python3 - "$UZ" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+# The whole `elif command -v fastfetch ...` branch, including its do_render guard.
+new = re.sub(
+    r"[ \t]*elif command -v fastfetch >/dev/null; then\n(?:.*?\n)*?[ \t]*fi\n(?=[ \t]*fi\n)",
+    "    # No fastfetch banner: end-4 opens straight to the prompt. This was HyDE's.\n"
+    "    # To restore:  elif command -v fastfetch >/dev/null; then\n"
+    "    #                  if do_render \"image\"; then fastfetch; fi\n",
+    s, count=1)
+if new == s:
+    print("   [AVISO] could not find the fastfetch branch in user.zsh - check by hand")
+else:
+    open(p, "w").write(new)
+    print("   [ok] startup banner removed from user.zsh (backup .bak-banner)")
+PYEOF
+else echo "   [skip] no startup banner (or no HyDE zsh)"; fi
+
 
 # The palette only exists once applycolor.sh has run. On a machine where the
 # wallpaper has not been changed since the install it never has, and the
