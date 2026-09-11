@@ -763,6 +763,75 @@ if [ -f "$C/quickshell/ii/scripts/colors/applycolor.sh" ]; then
     fi
 fi
 
+echo "== 18. Terminal palette: keep the six ansi hues apart =="
+# This is what "fastfetch only uses two colours" actually was. Not a missing
+# config -- end-4's own defaults.
+#
+# generate_colors_material.py starts from a gruvbox base (scripts/colors/
+# terminal/scheme-base.json, six clearly separate hues) and rotates every one of
+# them toward the wallpaper accent:
+#
+#     rotation = min(hue_difference * harmony, harmonize_threshold)
+#
+# end-4 ships harmony=0.6 and threshold=100, which is nearly a full collapse.
+# Measured on the Titan against accent #A5C9F8 (hue 255):
+#
+#   base hue ->  shipped (0.6/100)   this (0.25/30)
+#   red      26         307                356
+#   green   111         197                141
+#   yellow   78         178                108
+#   blue    201         233                214
+#   magenta 354         294                329
+#   cyan    149         212                175
+#
+# Shipped: yellow/green/cyan/blue all land inside 55 degrees of each other and
+# red/magenta land on top of each other -- six hues become two clusters, which
+# is exactly what you see. At 0.25/30 the smallest gap is 27 degrees and every
+# colour is still pulled toward the wallpaper.
+#
+# Only the term* colours are affected. The shell's own material colours come
+# from a different branch of the script and do not change.
+SC="$C/illogical-impulse/config.json"
+if [ -f "$SC" ] && command -v jq >/dev/null; then
+    cur=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmony' "$SC")
+    if [ "$cur" = "0.25" ]; then
+        echo "   [skip] harmony already 0.25"
+    else
+        cp "$SC" "$SC.bak-harmony"
+        if jq '.appearance.wallpaperTheming.terminalGenerationProps.harmony = 0.25
+             | .appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold = 30' \
+             "$SC" > "$SC.tmp"; then
+            mv "$SC.tmp" "$SC"
+            echo "   [ok] harmony 0.25 / threshold 30 (backup .bak-harmony)"
+        else
+            rm -f "$SC.tmp"; echo "   [FAIL] jq could not rewrite config.json"
+        fi
+    fi
+
+    # The new values only reach the palette on the next colour generation, and
+    # switchwall.sh reads config.json from disk each time -- no quickshell
+    # reload needed for this. But it DOES need the venv: over ssh
+    # ILLOGICAL_IMPULSE_VIRTUAL_ENV is unset, `source "$(eval echo
+    # $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate"` becomes /bin/activate, and
+    # the run leaves material_colors.scss at zero bytes and every theme file
+    # full of "$term0 #" placeholders. Set it explicitly.
+    export ILLOGICAL_IMPULSE_VIRTUAL_ENV="${ILLOGICAL_IMPULSE_VIRTUAL_ENV:-$HOME/.local/state/quickshell/.venv}"
+    WALL=$(cat "$HOME/.local/state/quickshell/user/generated/wallpaper/path.txt" 2>/dev/null || true)
+    if [ ! -d "$ILLOGICAL_IMPULSE_VIRTUAL_ENV" ]; then
+        echo "   [AVISO] venv not found, skipping regeneration"
+    elif [ -z "$WALL" ] || [ ! -f "$WALL" ]; then
+        echo "   [AVISO] no current wallpaper, skipping regeneration"
+    else
+        bash "$C/quickshell/ii/scripts/colors/switchwall.sh" "$WALL" >/dev/null 2>&1 || true
+        if grep -q '\$term' "$HOME/.local/state/quickshell/user/generated/terminal/kitty-theme.conf" 2>/dev/null; then
+            echo "   [FAIL] placeholders left in kitty-theme.conf - rerun from a"
+            echo "          graphical session, not over ssh"
+        else
+            echo "   [ok] palette regenerated"
+        fi
+    fi
+else echo "   [skip] no config.json or no jq"; fi
+
 echo
 echo "== Reminders =="
 echo "  - Binds in custom/keybinds.lua are ONLY loaded when Hyprland STARTS."

@@ -415,9 +415,11 @@ Three machines gave three different results for the same command:
 | Lenovo | **still HyDE's** | HyDE layout, calls `fastfetch.sh logo` |
 | HP | never existed | default Arch logo — two colors |
 
-The "two colors" on a new install is not a theming failure: with no config,
-fastfetch draws its builtin Arch logo, which is cyan plus the default key color.
-Nothing is reading the wallpaper palette because nothing asked it to.
+With no config, fastfetch draws its builtin Arch logo — cyan plus the default key
+color. Nothing is reading the wallpaper palette because nothing asked it to.
+
+But installing the shared config only got it halfway, because there is a second,
+unrelated cause with the same symptom — see below.
 
 Step 17 of [`end4-post-install.sh`](../scripts/end4-post-install.sh) installs one
 [`config.jsonc`](../config/fastfetch/config.jsonc) on all three: HyDE's layout
@@ -473,6 +475,79 @@ login and VS Code terminal.
 The `hyprctl splash` module is guarded on `$HYPRLAND_INSTANCE_SIGNATURE`:
 unguarded it prints *"is hyprland running?"* as the first line of every fastfetch
 over SSH, and `2>/dev/null` does not catch it — `hyprctl` writes that to stdout.
+
+---
+
+## The terminal palette really is two colors
+
+Not a leftover, not a missing config — **end-4's shipped defaults**. Worth
+reading before blaming anything else for washed-out terminal colors.
+
+`generate_colors_material.py` starts from a gruvbox base
+(`scripts/colors/terminal/scheme-base.json`, six clearly separate hues) and
+rotates every one of them toward the wallpaper accent:
+
+```python
+rotation_degrees = min(difference_degrees_ * harmony, threshold)
+```
+
+end-4 ships `harmony = 0.6`, `harmonizeThreshold = 100`. That is close to a full
+collapse. Measured on the Titan against accent `#A5C9F8` (hue 255) with
+[`term-hues.py`](../scripts/term-hues.py):
+
+| | base | shipped `0.6/100` | ours `0.25/30` |
+|---|---|---|---|
+| red | 26 | **307** | 356 |
+| green | 111 | **197** | 141 |
+| yellow | 78 | **178** | 108 |
+| blue | 201 | **233** | 214 |
+| magenta | 354 | **294** | 329 |
+| cyan | 149 | **212** | 175 |
+
+Shipped, yellow/green/cyan/blue all land within 55° of each other and
+red/magenta land on top of each other: **six hues become two clusters.** That is
+the "two colors", and no fastfetch config can fix it — the named ansi colors are
+faithfully reporting a palette that really does only have two hues in it.
+
+At `0.25/30` the smallest gap is 27° and every color is still pulled toward the
+wallpaper. Both are sliders in end-4's own Settings → Advanced; step 18 writes
+them to `~/.config/illogical-impulse/config.json` and regenerates.
+
+Only `term*` is affected. The shell's own material colors come from a different
+branch of the script, so the bar and launcher do not change.
+
+```bash
+~/.local/state/quickshell/.venv/bin/python scripts/term-hues.py
+```
+
+### Never run `switchwall.sh` over ssh without the venv
+
+```bash
+source "$(eval echo $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate"
+```
+
+Over ssh that variable is unset — Hyprland exports it in `hypr/hyprland/env.lua`,
+which an ssh session never reads — so the line becomes `source /bin/activate`,
+python runs outside the venv, and `materialyoucolor` is missing. The run does not
+abort: it leaves `material_colors.scss` at **zero bytes** and every generated
+theme full of literal `$term0 #` placeholders, which kitty then rejects as
+"Invalid color name".
+
+```bash
+export ILLOGICAL_IMPULSE_VIRTUAL_ENV="$HOME/.local/state/quickshell/.venv"
+bash ~/.config/quickshell/ii/scripts/colors/switchwall.sh "$(cat ~/.local/state/quickshell/user/generated/wallpaper/path.txt)"
+```
+
+Recovering is just that same command with the variable set. Check afterwards:
+
+```bash
+wc -l ~/.local/state/quickshell/user/generated/material_colors.scss   # want 76
+grep -c '\$term' ~/.local/state/quickshell/user/generated/terminal/kitty-theme.conf  # want 0
+```
+
+The `kde-material-you-colors` / `plasma-apply-colorscheme` errors at the end of
+every run are unrelated noise: a matugen post-hook for a Plasma that isn't
+installed. The colors are already written by then.
 
 ---
 

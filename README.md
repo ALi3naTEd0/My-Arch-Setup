@@ -51,9 +51,10 @@ obvious at first.
 
 | Script | What it does |
 |---|---|
-| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 17 tweaks that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
+| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 18 tweaks that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
 | [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Not in use.** kitty palette from the wallpaper via k-means. Kept for reference; `WALLBASH=1` reinstates it. |
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
+| [`term-hues.py`](scripts/term-hues.py) | Prints what each ansi hue becomes for a given `harmony`/`harmonizeThreshold`. Run with the illogical-impulse venv python. |
 | [`agent-usage-claude`](scripts/agent-usage-claude), [`agent-usage-codex`](scripts/agent-usage-codex) | Print one JSON usage record per AI coding agent. Vendored from Omarchy (MIT); feed the [bar widget](docs/07-bar-widgets.md). |
 
 ```bash
