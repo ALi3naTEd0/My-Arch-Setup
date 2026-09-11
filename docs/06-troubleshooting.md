@@ -443,8 +443,27 @@ grep -rn "alias fastfetch" ~/.config/zsh/conf.d/hyde/terminal.zsh
 
 `--logo-type kitty` overrides `logo.type` in the config. It comes from **HyDE's
 zsh framework**, which the Titan still runs (see below); the laptops don't have
-it, so they never saw the override. Step 1 appends `unalias fastfetch` to
-`conf.d/99-end4.zsh`, which is sourced after `conf.d/hyde/*`.
+it, so they never saw the override.
+
+**But removing the alias changes nothing**, which is the part worth writing
+down. The fastfetch you see when a terminal opens is not typed, so it never goes
+through an alias — it comes from `$ZDOTDIR/user.zsh`, with the flag written out
+literally:
+
+```zsh
+if do_render "image"; then
+    fastfetch --logo-type kitty
+fi
+```
+
+And `conf.d/hyde/terminal.zsh` sources `user.zsh` *itself*, at line 192 — inside
+`conf.d/00-hyde.zsh`, long before `conf.d/99-end4.zsh` is reached. An `unalias`
+there cannot touch something that already ran. Step 17 edits the line; step 1
+still drops the alias, for when you type `fastfetch` by hand.
+
+Keep the `do_render "image"` guard when editing it: it restricts the banner to
+kitty/konsole/ghostty/WezTerm, which is what keeps fastfetch out of every ssh
+login and VS Code terminal.
 
 > Worth knowing when reading any zsh problem on these machines: the Titan's
 > `ZDOTDIR` is `~/.config/zsh` (set in `~/.zshenv`), so **`~/.zshrc` is never

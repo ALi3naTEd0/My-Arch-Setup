@@ -736,6 +736,20 @@ FFEOF
     echo "   [ok] $FF"
 fi
 
+# On a machine that still runs HyDE's zsh, the fastfetch you actually see is not
+# the one you type: conf.d/hyde/terminal.zsh sources $ZDOTDIR/user.zsh, which
+# runs `fastfetch --logo-type kitty` at every interactive startup. That literal
+# flag -- not the alias handled in step 1 -- overrides logo.type in the config
+# above, and it runs long before conf.d/99-end4.zsh is sourced, so unaliasing
+# cannot reach it. Drop the flag; keep the do_render guard so fastfetch stays
+# out of ssh logins and VS Code terminals.
+UZ="$C/zsh/user.zsh"
+if [ -f "$UZ" ] && grep -q 'fastfetch --logo-type kitty' "$UZ"; then
+    cp "$UZ" "$UZ.bak-logotype"
+    sed -i 's/fastfetch --logo-type kitty/fastfetch/' "$UZ"
+    echo "   [ok] startup fastfetch in user.zsh no longer forces --logo-type"
+else echo "   [skip] user.zsh startup call already clean (or no HyDE zsh)"; fi
+
 # The palette only exists once applycolor.sh has run. On a machine where the
 # wallpaper has not been changed since the install it never has, and the
 # generated files sit there stale -- which is why the Lenovo still showed
