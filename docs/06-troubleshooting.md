@@ -430,6 +430,27 @@ under `~/.config/hyde`).
 its own and never needs regenerating. Hardcoding hex is what would freeze it,
 which is the same mistake that froze `sequences.txt` above.
 
+### Same config, different logo
+
+The Titan kept drawing the large Arch logo after the shared config was in place,
+while the Lenovo drew the small one from the same file. The config was not the
+problem — the shell was:
+
+```bash
+grep -rn "alias fastfetch" ~/.config/zsh/conf.d/hyde/terminal.zsh
+# alias fastfetch='fastfetch --logo-type kitty'
+```
+
+`--logo-type kitty` overrides `logo.type` in the config. It comes from **HyDE's
+zsh framework**, which the Titan still runs (see below); the laptops don't have
+it, so they never saw the override. Step 1 appends `unalias fastfetch` to
+`conf.d/99-end4.zsh`, which is sourced after `conf.d/hyde/*`.
+
+> Worth knowing when reading any zsh problem on these machines: the Titan's
+> `ZDOTDIR` is `~/.config/zsh` (set in `~/.zshenv`), so **`~/.zshrc` is never
+> sourced there** — it's a leftover oh-my-zsh file that looks live and isn't.
+> The live one is `~/.config/zsh/.zshrc`.
+
 The `hyprctl splash` module is guarded on `$HYPRLAND_INSTANCE_SIGNATURE`:
 unguarded it prints *"is hyprland running?"* as the first line of every fastfetch
 over SSH, and `2>/dev/null` does not catch it — `hyprctl` writes that to stdout.

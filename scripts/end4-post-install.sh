@@ -21,6 +21,21 @@ ZSH
     echo "   [ok] created zsh/conf.d/99-end4.zsh"
 else echo "   [skip] zsh override already present (or no conf.d)"; fi
 
+# HyDE's conf.d/hyde/terminal.zsh defines `alias fastfetch='fastfetch
+# --logo-type kitty'`. That flag overrides `logo.type: small` in the shared
+# fastfetch config (step 17), so a machine that still runs HyDE's zsh draws a
+# different logo from one that does not -- with the same config file. 99-end4
+# is sourced after conf.d/hyde/*, so the alias already exists here.
+if [ -f "$C/zsh/conf.d/99-end4.zsh" ] && ! grep -q 'unalias fastfetch' "$C/zsh/conf.d/99-end4.zsh"; then
+    cat >> "$C/zsh/conf.d/99-end4.zsh" <<'ZSH'
+
+# HyDE aliases `fastfetch --logo-type kitty`, overriding logo.type in
+# ~/.config/fastfetch/config.jsonc. Sourced after conf.d/hyde/*.
+unalias fastfetch 2>/dev/null
+ZSH
+    echo "   [ok] HyDE's fastfetch alias neutralised"
+else echo "   [skip] fastfetch alias already handled (or no HyDE zsh)"; fi
+
 if [ -d "$C/uwsm/env-hyprland.d" ] && [ ! -f "$C/uwsm/env-hyprland.d/99-end4.sh" ]; then
     cat > "$C/uwsm/env-hyprland.d/99-end4.sh" <<'SH'
 #!/usr/bin/env sh
