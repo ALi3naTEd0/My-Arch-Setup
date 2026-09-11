@@ -464,14 +464,15 @@ p = os.path.expanduser("~/.config/illogical-impulse/config.json")
 if not os.path.isfile(p):
     print("   [skip] config.json missing"); raise SystemExit
 d = json.load(open(p))
-# --hold keeps the window open whatever happens inside: if yay fails
-# instantly you see the error instead of a flash. The stock command is
-# `pkexec pacman -Syu` inside fish, which cannot prompt for a password
-# because pkexec does not pass a terminal, and ignores the AUR besides.
-cmd = 'kitty --hold zsh -ic "yay -Syu"' 
+# The stock command is `pkexec pacman -Syu` inside fish and does NOT work:
+# pkexec does not pass a terminal to an interactive command, so it can never
+# prompt for a password. It also ignores the AUR entirely.
+#
+# end4-update replaces it: a coloured summary per source before anything is
+# touched, then the upgrade. No --hold needed, the script holds itself.
+# UpdatesIndicator runs this through `bash -c`, so ~ expands.
+cmd = 'kitty ~/.local/bin/end4-update'
 changed = []
-# The stock one is `pkexec pacman -Syu` inside fish and does NOT work: pkexec
-# does not pass a terminal to an interactive command. It also ignores the AUR.
 if d.get("apps", {}).get("update") != cmd:
     d.setdefault("apps", {})["update"] = cmd; changed.append("apps.update")
 # 120 min leaves the counter so stale it looks broken.
@@ -484,6 +485,14 @@ if changed:
 else:
     print("   [skip] already set")
 PY
+if [ ! -x "$HOME/.local/bin/end4-update" ]; then
+    echo "   [AVISO] ~/.local/bin/end4-update is missing: copy it from the repo"
+    echo "           (scripts/end4-update), or the indicator will do nothing"
+fi
+command -v checkupdates >/dev/null || {
+    echo "   [AVISO] pacman-contrib is not installed, so there is no checkupdates."
+    echo "           end4-update falls back to the AUR helper, which is slower."
+    echo "           pacman -S pacman-contrib"; }
 
 echo "== 15. Concurrency limit for the thumbnail generator =="
 # THE IMPORTANT ONE. end-4 spawns one `magick` per file with no cap; with a few

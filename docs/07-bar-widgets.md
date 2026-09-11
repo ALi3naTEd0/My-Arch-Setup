@@ -31,6 +31,42 @@ thresholds still drive the colour.
 Left click runs `Config.options.apps.update`, then re-queries every 30 s for ten
 minutes so the icon disappears on its own. Right click checks now.
 
+### What it runs
+
+```json
+"update": "kitty ~/.local/bin/end4-update"
+```
+
+The stock command is `pkexec pacman -Syu` inside fish, which **cannot work**:
+pkexec does not pass a terminal, so it can never prompt for a password. It also
+ignores the AUR.
+
+[`end4-update`](../scripts/end4-update) prints what is pending grouped by source
+before touching anything, then upgrades — roughly what HyDE's `system.update.py`
+did, without the HyDE dependency:
+
+```
+  repo       3 pending
+  AUR        1 pending
+  flatpak    up to date
+
+Repo (3)
+  kitty                  0.48.2-1 -> 0.49.0-1
+```
+
+Two details worth keeping:
+
+- **`checkupdates`, not `pacman -Sy`.** It refreshes a private copy of the
+  database, so it never leaves the real one half-synced — which is how you get a
+  partial upgrade. It needs `pacman-contrib`; without it the script falls back to
+  the AUR helper and says so.
+- **Named ansi colours only** (slots 1–6), so the output follows end-4's
+  wallpaper palette. If those six look like two, that is `harmony`
+  ([here](06-troubleshooting.md#the-terminal-palette-really-is-two-colors)), not
+  this script.
+
+`UpdatesIndicator` runs the string through `bash -c`, so `~` expands.
+
 > If the icon isn't there, check there's actually something pending:
 > `{ checkupdates; yay -Qua; } | wc -l`. It hides at zero by design.
 
