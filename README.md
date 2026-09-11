@@ -6,9 +6,10 @@ the lessons that were expensive to find.
 
 > **Desktop change (2026-08/09):** this repo used to document HyDE. All three
 > machines migrated to [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland).
-> Some HyDE leftovers are kept on purpose — a few are still useful
-> (the SDDM themes), the rest are
-> listed in [troubleshooting](docs/06-troubleshooting.md#hyde-leftovers).
+> **Nothing of HyDE's is load-bearing any more.** Its zsh framework is still the
+> login shell on the Titan (`ZDOTDIR=~/.config/zsh`); everything else is inert
+> files. Both are listed in
+> [troubleshooting](docs/06-troubleshooting.md#hyde-leftovers).
 
 ---
 
@@ -24,7 +25,7 @@ the lessons that were expensive to find.
 | Network | ethernet | wifi | wifi |
 | Keyboard | `es` | `latam` | `latam` |
 | Autologin | yes | yes | no |
-| SDDM theme | Corners (HyDE) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) |
+| SDDM theme | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) |
 | Swap | zram 4G | zram 4G + 16G partition | zram 3.8G |
 
 All three are on the same tailnet, so they're reachable by Tailscale IP from any
@@ -51,7 +52,7 @@ obvious at first.
 
 | Script | What it does |
 |---|---|
-| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 18 steps that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
+| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 19 steps that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
 | [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Not in use, and no longer needed.** It existed to work around end-4's monochrome terminal palette, which turned out to be a [setting](docs/06-troubleshooting.md#the-terminal-palette-really-is-two-colors). Kept for reference. |
 | [`end4-update`](scripts/end4-update) | Coloured system update: what is pending per source (repo / AUR / flatpak), then the upgrade. Wired to `apps.update`, so the bar's indicator runs it. |
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
@@ -87,12 +88,17 @@ paru -S alarm-clock-applet android-studio appimagelauncher arrpc btop deemix-gui
 
 ### Desktop and remote access
 ```bash
-paru -S uwsm wayvnc rustdesk-bin hypr-rdp matugen fastfetch starship tailscale
+paru -S uwsm wayvnc rustdesk-bin hypr-rdp matugen fastfetch starship tailscale \
+  pacman-contrib
 ```
 
 `uwsm` is an **optional dependency** of Hyprland, so it is never pulled in
 automatically — but without it `graphical-session.target` never activates and no
 user service starts. See [why it matters](docs/06-troubleshooting.md#uwsm).
+
+`pacman-contrib` provides `checkupdates`, which the bar's updates counter and
+[`end4-update`](scripts/end4-update) both use. It is missing on a clean Arch, and
+its absence is silent: the counter just never leaves zero.
 
 ### Services
 ```bash

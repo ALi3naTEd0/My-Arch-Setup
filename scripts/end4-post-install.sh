@@ -714,6 +714,83 @@ if [ -f "$SC" ] && command -v jq >/dev/null; then
     fi
 else echo "   [skip] no config.json or no jq"; fi
 
+echo "== 19. Atomic writes in the colour scripts (PR #3627) =="
+# Both files belong to end-4, so `./setup install` reverts them every time.
+# While https://github.com/end-4/dots-hyprland/pull/3627 is open, reapply here.
+#
+# Without this the failure is silent and permanent: any interrupted or failed
+# generation leaves material_colors.scss empty and every theme file full of
+# literal "$term0 #", which kitty rejects as "Invalid color name". Reproduced on
+# the Lenovo on 2026-09-11 by running switchwall.sh over ssh without the venv.
+python3 - "$C/quickshell/ii/scripts/colors" <<'PYEOF'
+import os, shutil, sys
+d = sys.argv[1]
+ac, sw = os.path.join(d, "applycolor.sh"), os.path.join(d, "switchwall.sh")
+
+def patch(path, pairs, marker):
+    if not os.path.isfile(path):
+        print(f"   [skip] {os.path.basename(path)} missing"); return
+    s = open(path).read()
+    if marker in s:
+        print(f"   [skip] {os.path.basename(path)} already patched"); return
+    out = s
+    for old, new in pairs:
+        if old not in out:
+            print(f"   [FAIL] {os.path.basename(path)}: upstream changed, patch by hand")
+            return
+        out = out.replace(old, new, 1)
+    shutil.copy(path, path + ".pre-pr3627")
+    open(path, "w").write(out)
+    print(f"   [ok] {os.path.basename(path)} patched (backup .pre-pr3627)")
+
+patch(ac, [
+    # a) bail out instead of writing templates verbatim
+    ("colorvalues=($colorstrings) # Array of color values\n",
+     "colorvalues=($colorstrings) # Array of color values\n\n"
+     "# Without colors every sed substitution below is a no-op and the templates get\n"
+     "# copied verbatim, leaving literal \"$term0 #\" placeholders in the generated theme\n"
+     "# files (kitty then errors out with \"Invalid color name\"). Bail out instead.\n"
+     "if [ ${#colorlist[@]} -eq 0 ]; then\n"
+     "  echo \"applycolor: no colors in $STATE_DIR/user/generated/material_colors.scss; keeping existing themes\" >&2\n"
+     "  exit 1\n"
+     "fi\n"),
+    # b) build the theme in a temp file, then mv
+    ('  # Copy template\n  mkdir -p "$STATE_DIR"/user/generated/terminal\n'
+     '  cp "$SCRIPT_DIR/terminal/kitty-theme.conf" "$STATE_DIR"/user/generated/terminal/kitty-theme.conf\n',
+     '  # Build in a temp file, then move into place, so a reader never sees a\n'
+     '  # half-substituted theme -- and an interrupted run cannot leave one behind.\n'
+     '  mkdir -p "$STATE_DIR"/user/generated/terminal\n'
+     '  local target="$STATE_DIR/user/generated/terminal/kitty-theme.conf"\n'
+     '  local tmp="$target.tmp.$$"\n'
+     '  cp "$SCRIPT_DIR/terminal/kitty-theme.conf" "$tmp"\n'),
+    ('    sed -i "s/${colorlist[$i]} #/${colorvalues[$i]#\\#}/g" "$STATE_DIR"/user/generated/terminal/kitty-theme.conf\n  done\n',
+     '    sed -i "s/${colorlist[$i]} #/${colorvalues[$i]#\\#}/g" "$tmp"\n  done\n  mv "$tmp" "$target"\n'),
+    # c) the guard and the signal must agree on how they match
+    ('  # Reload\n  if ! pgrep -f kitty >/dev/null; then\n    return\n  fi\n  kill -SIGUSR1 $(pidof kitty)\n',
+     "  # Reload. Match on the process name only: 'pgrep -f kitty' also matches any\n"
+     "  # command line that merely mentions kitty, and then 'pidof' comes back empty\n"
+     "  # and kill runs with no arguments.\n"
+     '  local pids\n  pids=$(pgrep -x kitty) || return\n  [ -n "$pids" ] && kill -SIGUSR1 $pids\n'),
+], marker="pgrep -x kitty")
+
+patch(sw, [
+    ('    python3 "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" \\\n'
+     '        > "$STATE_DIR"/user/generated/material_colors.scss\n',
+     '    # Generate into a temp file first: redirecting straight into material_colors.scss\n'
+     '    # truncates it to 0 bytes *before* python runs, so any failure leaves an empty file\n'
+     '    # and applycolor.sh then writes theme files full of unsubstituted placeholders.\n'
+     '    if python3 "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" \\\n'
+     '        > "$STATE_DIR"/user/generated/material_colors.scss.tmp \\\n'
+     '        && [ -s "$STATE_DIR"/user/generated/material_colors.scss.tmp ]; then\n'
+     '        mv "$STATE_DIR"/user/generated/material_colors.scss.tmp \\\n'
+     '           "$STATE_DIR"/user/generated/material_colors.scss\n'
+     '    else\n'
+     '        rm -f "$STATE_DIR"/user/generated/material_colors.scss.tmp\n'
+     '        echo "switchwall: generate_colors_material.py produced no output; keeping previous colors" >&2\n'
+     '    fi\n'),
+], marker="material_colors.scss.tmp")
+PYEOF
+
 echo
 echo "== Reminders =="
 echo "  - Binds in custom/keybinds.lua are ONLY loaded when Hyprland STARTS."

@@ -323,17 +323,32 @@ sleep — typical signature is a 0.8 ms minimum against a 19 ms average.
 
 ## HyDE leftovers
 
-After migrating to end-4 some HyDE pieces remain. **Not all of them are in the
-way:**
+After migrating to end-4 some HyDE pieces remain. **Only one is load-bearing**,
+and it is the one that keeps producing surprises:
 
 | Path | Verdict |
 |---|---|
-| `~/.local/lib/hyde/wallbash.sh` + `.dcol` templates | **useful** — `wallbash-kitty.sh` uses them |
-| `/usr/share/sddm/themes/{Corners,MacOS,…}` | loose, unowned (`pacman -Qo` doesn't know them) |
+| `~/.config/zsh/` (+ `~/.zshenv` setting `ZDOTDIR`) | **live on the Titan** — this is the login shell, see below |
 | `~/.config/zsh/conf.d/hyde/prompt.zsh` | **do not delete** — it is what sources `~/.config/zsh/prompt.zsh` |
+| `~/.local/lib/hyde/wallbash.sh` + `.dcol` templates | inert — nothing calls them since `harmony` replaced wallbash |
+| `/usr/share/sddm/themes/{Corners,MacOS,…}` | loose, unowned (`pacman -Qo` doesn't know them). All three machines use ii-sddm now |
+| `/etc/sddm.conf.d/the_hyde_project.conf` | still says `Current=Corners`; the `zz-` file outranks it |
+| `~/.config/fastfetch/config.jsonc` | removed (`.hyde-layout-bak`) — end-4 ships none |
 | `~/.config/fish/conf.d/hyde.fish` | harmless as long as `functions/bind_M_n_history.fish` exists |
-| `/etc/sddm.conf.d/the_hyde_project.conf` | causes the theme conflict above |
 | `~/.config/qt6ct.conf`, `~/.config/dunst/` | inert; end-4 uses `kdeglobals` and its own service |
+
+### The zsh framework is still the Titan's shell
+
+`~/.zshenv` sets `ZDOTDIR="$XDG_CONFIG_HOME/zsh"`, so the live startup chain is
+`~/.config/zsh/.zshrc` → `conf.d/00-hyde.zsh` → `conf.d/hyde/{env,prompt,terminal}.zsh`,
+and **`~/.zshrc` is never sourced** — it is a leftover oh-my-zsh file that reads
+as live and isn't. Nearly every "but the config says X" puzzle on the Titan has
+come from reading the wrong file.
+
+`conf.d/99-end4.zsh` is ours and loads last. It is the right place for overrides
+— but only for things that are still overridable by then: `terminal.zsh` sources
+`user.zsh` at its line 192, so anything `user.zsh` *runs* has already happened
+(see [fastfetch](#fastfetch)).
 
 ### The prompt
 
