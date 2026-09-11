@@ -565,6 +565,175 @@ else:
     print("   [ok] inserted into BarContent.qml")
 PYEOF
 
+echo "== 17. fastfetch: one config on every machine, coloured by end-4 =="
+# Three machines, three different results before this:
+#   Titan   - no config at all (HyDE's was renamed away) -> builtin layout
+#   Lenovo  - HyDE's config still in place, calling `fastfetch.sh logo`
+#   HP      - fresh install, no config -> default Arch logo, two colours
+#
+# The layout below is HyDE's, minus its two dependencies. Everything is a NAMED
+# ansi colour (red/green/yellow/blue/magenta/cyan = palette slots 1..6), which
+# is precisely what applycolor.sh repaints from the wallpaper -- so it tracks
+# the theme by itself. Hardcoding hex is what would freeze it.
+FF="$C/fastfetch/config.jsonc"
+mkdir -p "$C/fastfetch"
+if [ -f "$FF" ] && grep -q 'fastfetch.sh logo' "$FF"; then
+    cp "$FF" "$FF.bak-hyde"
+    echo "   backing up HyDE's config -> $(basename "$FF").bak-hyde"
+fi
+if [ -f "$FF" ] && ! grep -q 'fastfetch.sh logo' "$FF" && grep -q 'hyprctl splash' "$FF"; then
+    echo "   [skip] already installed"
+else
+    cat > "$FF" <<'FFEOF'
+/*
+fastfetch for end-4 (illogical-impulse).
+
+Layout is HyDE's, with its two dependencies removed:
+  - the logo came from `fastfetch.sh logo` (a HyDE script) -> builtin logo
+  - nothing here reads ~/.config/hyde or wallbash any more
+
+Every colour is a NAMED ansi colour (red/green/yellow/blue/magenta/cyan =
+palette slots 1..6). end-4 repaints exactly those slots from the wallpaper in
+scripts/colors/applycolor.sh, so this config follows the theme on its own and
+never needs regenerating. Hardcoding hex here is what would freeze it.
+*/
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "small",
+    "padding": { "top": 1, "right": 3 }
+  },
+  "display": {
+    "separator": " : "
+  },
+  "modules": [
+    {
+      "type": "command",
+      "key": "  ",
+      "keyColor": "blue",
+      "text": "[ -n \"$HYPRLAND_INSTANCE_SIGNATURE\" ] && hyprctl splash 2>/dev/null || true"
+    },
+    {
+      "type": "custom",
+      "format": "┌──────────────────────────────────────────┐"
+    },
+    {
+      "type": "chassis",
+      "key": "  󰇺 Chassis",
+      "format": "{1} {2} {3}"
+    },
+    {
+      "type": "os",
+      "key": "  󰣇 OS",
+      "format": "{2}",
+      "keyColor": "red"
+    },
+    {
+      "type": "kernel",
+      "key": "   Kernel",
+      "format": "{2}",
+      "keyColor": "red"
+    },
+    {
+      "type": "packages",
+      "key": "  󰏗 Packages",
+      "keyColor": "green"
+    },
+    {
+      "type": "display",
+      "key": "  󰍹 Display",
+      "format": "{1}x{2} @ {3}Hz [{7}]",
+      "keyColor": "green"
+    },
+    {
+      "type": "terminal",
+      "key": "   Terminal",
+      "keyColor": "yellow"
+    },
+    {
+      "type": "wm",
+      "key": "  󱗃 WM",
+      "format": "{2}",
+      "keyColor": "yellow"
+    },
+    {
+      "type": "custom",
+      "format": "└──────────────────────────────────────────┘"
+    },
+    "break",
+    {
+      "type": "title",
+      "key": "  ",
+      "format": "{6} {7} {8}"
+    },
+    {
+      "type": "custom",
+      "format": "┌──────────────────────────────────────────┐"
+    },
+    {
+      "type": "cpu",
+      "format": "{1} @ {7}",
+      "key": "   CPU",
+      "keyColor": "blue"
+    },
+    {
+      "type": "gpu",
+      "format": "{1} {2}",
+      "key": "  󰊴 GPU",
+      "keyColor": "blue"
+    },
+    {
+      "type": "gpu",
+      "format": "{3}",
+      "key": "   GPU Driver",
+      "keyColor": "magenta"
+    },
+    {
+      "type": "memory",
+      "key": "   Memory ",
+      "keyColor": "magenta"
+    },
+    {
+      "type": "disk",
+      "key": "  󱦟 OS Age ",
+      "folders": "/",
+      "keyColor": "red",
+      "format": "{days} days"
+    },
+    {
+      "type": "uptime",
+      "key": "  󱫐 Uptime ",
+      "keyColor": "red"
+    },
+    {
+      "type": "custom",
+      "format": "└──────────────────────────────────────────┘"
+    },
+    {
+      "type": "colors",
+      "paddingLeft": 2,
+      "symbol": "circle"
+    },
+    "break"
+  ]
+}
+FFEOF
+    echo "   [ok] $FF"
+fi
+
+# The palette only exists once applycolor.sh has run. On a machine where the
+# wallpaper has not been changed since the install it never has, and the
+# generated files sit there stale -- which is why the Lenovo still showed
+# wallbash colours weeks later. Force one pass.
+if [ -f "$C/quickshell/ii/scripts/colors/applycolor.sh" ]; then
+    if bash "$C/quickshell/ii/scripts/colors/applycolor.sh" 2>/dev/null; then
+        echo "   [ok] palette reapplied"
+    else
+        echo "   [AVISO] applycolor.sh failed: no material_colors.scss yet?"
+        echo "           change the wallpaper once and rerun this step"
+    fi
+fi
+
 echo
 echo "== Reminders =="
 echo "  - Binds in custom/keybinds.lua are ONLY loaded when Hyprland STARTS."

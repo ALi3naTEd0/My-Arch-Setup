@@ -376,8 +376,63 @@ include wallbash-theme.conf
 ### `sequences.txt` overrides the colors
 
 end-4 emits `sequences.txt` to **every** open `/dev/pts` from `apply_anyterm`,
-after kitty has already loaded its config. `wallbash-kitty.sh` rewrites that file
-with the same palette so that whichever wins, the result is identical.
+after kitty has already loaded its config. So the escape sequences, not
+`kitty-theme.conf`, are what you end up looking at in an already-open terminal.
+
+While wallbash was still in the chain, `wallbash-kitty.sh` deliberately rewrote
+that file with its own palette so the two couldn't disagree. **After removing
+wallbash that rewrite is what freezes the old colors**: nothing regenerates
+`sequences.txt` until `applycolor.sh` runs again, and `applycolor.sh` only runs
+on a wallpaper change. The Lenovo sat on a wallbash palette from 2026-09-08 for
+three days that way — `kitty-theme.conf` said `#181B1E`, `sequences.txt` said
+`#293952`, and the sequences won.
+
+Tell them apart without guessing: end-4's file carries the 232–255 slots and an
+`]1;0;` entry right after `]4;0;`; wallbash's has neither and stops at 15.
+
+```bash
+wc -c ~/.local/state/quickshell/user/generated/terminal/sequences.txt
+# 726 = end-4's   ·   288 = wallbash's
+```
+
+Force one pass without touching the wallpaper:
+
+```bash
+bash ~/.config/quickshell/ii/scripts/colors/applycolor.sh
+```
+
+---
+
+## fastfetch
+
+### Two colors on a fresh install, HyDE's colors on an old one
+
+Three machines gave three different results for the same command:
+
+| | `~/.config/fastfetch/config.jsonc` | what you see |
+|---|---|---|
+| Titan | renamed to `.bak-hyde` | fastfetch's builtin layout |
+| Lenovo | **still HyDE's** | HyDE layout, calls `fastfetch.sh logo` |
+| HP | never existed | default Arch logo — two colors |
+
+The "two colors" on a new install is not a theming failure: with no config,
+fastfetch draws its builtin Arch logo, which is cyan plus the default key color.
+Nothing is reading the wallpaper palette because nothing asked it to.
+
+Step 17 of [`end4-post-install.sh`](../scripts/end4-post-install.sh) installs one
+[`config.jsonc`](../config/fastfetch/config.jsonc) on all three: HyDE's layout
+with its two dependencies removed (`fastfetch.sh logo` → builtin logo, nothing
+under `~/.config/hyde`).
+
+**Every color in it is a named ansi color** — `red`, `green`, `yellow`, `blue`,
+`magenta`, `cyan` — which are palette slots 1–6, exactly the slots
+`applycolor.sh` repaints from the wallpaper. So the config follows the theme on
+its own and never needs regenerating. Hardcoding hex is what would freeze it,
+which is the same mistake that froze `sequences.txt` above.
+
+The `hyprctl splash` module is guarded on `$HYPRLAND_INSTANCE_SIGNATURE`:
+unguarded it prints *"is hyprland running?"* as the first line of every fastfetch
+over SSH, and `2>/dev/null` does not catch it — `hyprctl` writes that to stdout.
 
 ---
 
