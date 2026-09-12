@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Write scheme-base.json from the wallpaper's own dominant colours.
+
+Why this exists
+---------------
+end-4 reduces the whole wallpaper to ONE number -- primary_paletteKeyColor --
+and builds the 16 terminal slots by rotating a fixed gruvbox base toward that
+single hue by min(hue_difference * harmony, harmonize_threshold).
+
+So the image's actual hues never enter the calculation. Measured on the Titan,
+2026-09-11: swapping an all-blue arctic wallpaper for Dracula_waves (which
+contains cyan 200, violet 247 and magenta 311) moved the generated hues from
+[57, 104, 161, 191, 298, 330] to [20, 104, 164, 196, 313, 337]. Barely anything.
+With harmony low the palette ignores the wallpaper; with harmony high it
+collapses to one hue. Neither is "colours from the background".
+
+This fills the *base* with real dominant colours instead, then lets end-4's own
+generator run unchanged on top. No second pipeline, no include-order fight, no
+sequences.txt tug of war -- the failure modes wallbash-kitty.sh had.
+
+Usage:  end4-termscheme [wallpaper]        # default: end-4's current wallpaper
+        end4-termscheme --restore          # put upstream's gruvbox base back
+"""
+import colorsys
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+BASE = os.path.expanduser(
+    "~/.config/quickshell/ii/scripts/colors/terminal/scheme-base.json")
+WALL = os.path.expanduser(
+    "~/.local/state/quickshell/user/generated/wallpaper/path.txt")
+PRISTINE = BASE + ".upstream"
+
+# Slot order by hue, as gruvbox lays them out. Dominant colours are sorted by
+# hue and dealt into these slots in this order, so a warm image still lands its
+# warm colours in term1/term3 rather than scattering them at random.
+SLOTS = ["term1", "term3", "term2", "term6", "term4", "term5"]
+SLOT_ANCHOR = {"term1": 26, "term3": 78, "term2": 111,
+               "term6": 149, "term4": 201, "term5": 354}
+
+
+def hex_to_hsv(h):
+    h = h.lstrip("#")
+    r, g, b = (int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
+    return colorsys.rgb_to_hsv(r, g, b)
+
+
+def hsv_to_hex(h, s, v):
+    r, g, b = colorsys.hsv_to_rgb(h, s, v)
+    return "#%02X%02X%02X" % (round(r*255), round(g*255), round(b*255))
+
+
+def dominant(path, n=12):
+    """Quantise to n colours. 200x200 is plenty -- k-means looks at the colour
+    distribution, not detail -- and it keeps ImageMagick off the OOM killer,
+    which took down a whole session here once."""
+    out = subprocess.run(
+        ["magick", path + "[0]", "-alpha", "off", "-resize", "200x200!",
+         "-colors", str(n), "-format", "%c", "histogram:info:-"],
+        capture_output=True, text=True, check=True).stdout
+    cols = []
+    for line in out.splitlines():
+        if "#" not in line:
+            continue
+        count = int(line.strip().split(":")[0])
+        cols.append((count, "#" + line.split("#")[1][:6]))
+    return cols
+
+
+def pick_hues(cols, want=6):
+    """The most-used colour of each distinct hue family, ignoring near-greys.
+
+    Greys carry no hue, so letting them through would produce slots that are
+    identical to the background -- invisible text.
+    """
+    fams = {}
+    for count, hx in sorted(cols, reverse=True):
+        h, s, v = hex_to_hsv(hx)
+        if s < 0.12 or v < 0.10:
+            continue
+        key = round(h * 360 / 25)          # 25-degree families
+        fams.setdefault(key, (count, hx, h * 360))
+    picked = sorted(fams.values(), reverse=True)[:want]
+    return sorted(picked, key=lambda t: t[2])   # by hue
+
+
+def build(path):
+    cols = dominant(path)
+    picked = pick_hues(cols)
+    if not picked:
+        print("end4-termscheme: no usable hues in the image; leaving the base "
+              "alone", file=sys.stderr)
+        return None
+
+    # Fewer families than slots: fill by bisecting the widest gap between the
+    # hues we did find, rather than repeating them. Duplicates make two ansi
+    # slots identical, and things that colour-code by slot (diffs, ls, grep
+    # matches) stop being distinguishable -- the exact complaint that started
+    # this. Interpolating stays inside the image's own hue range.
+    hues = [t[2] for t in picked]
+    while len(hues) < len(SLOTS):
+        ring = sorted(hues)
+        gaps = [((ring[(i+1) % len(ring)] - ring[i]) % 360, i) for i in range(len(ring))]
+        width, i = max(gaps)
+        hues.append((ring[i] + width / 2) % 360)
+    hues = sorted(hues)
+
+    dark, light = {}, {}
+    for slot, hue in zip(SLOTS, hues):
+        # Saturation and value are pinned, not taken from the image: a dominant
+        # colour can be almost black or almost white, and a terminal slot has to
+        # be readable on the background regardless of where it came from.
+        #
+        # These match gruvbox's own range (sat ~0.85, val ~0.60-0.84) on purpose.
+        # end-4 then applies boost_chroma_tone(_, 1, 1 + term_fg_boost) -- +35%
+        # tone by default -- so a base built at val 0.86 comes out near-white and
+        # the slot is unreadable. Build low; let the boost do the lifting.
+        dark[slot] = hsv_to_hex(hue / 360, 0.85, 0.66)
+        light[slot] = hsv_to_hex(hue / 360, 0.80, 0.62)
+
+    # term0/7/8/15 are the anchors; end-4 overrides 0 and 15 via --blend_bg_fg.
+    mid = sum(h for h in hues) / len(hues) / 360
+    dark.update({"term0": "#15181B", "term7": hsv_to_hex(mid, 0.06, 0.88),
+                 "term8": hsv_to_hex(mid, 0.18, 0.52), "term15": "#FFFFFF"})
+    light.update({"term0": "#FDF9F3", "term7": hsv_to_hex(mid, 0.20, 0.22),
+                  "term8": hsv_to_hex(mid, 0.10, 0.12), "term15": "#121212"})
+    # 9-14 are the bright variants of 1-6.
+    for src, dst in zip(SLOTS, ["term9", "term11", "term10", "term14",
+                                "term12", "term13"]):
+        h, s, v = hex_to_hsv(dark[src])
+        dark[dst] = hsv_to_hex(h, max(0.0, s - 0.18), min(1.0, v + 0.10))
+        h, s, v = hex_to_hsv(light[src])
+        light[dst] = hsv_to_hex(h, max(0.0, s - 0.18), min(1.0, v + 0.10))
+
+    order = [f"term{i}" for i in range(16)]
+    return {"dark": {k: dark[k] for k in order},
+            "light": {k: light[k] for k in order}}
+
+
+def main():
+    args = [a for a in sys.argv[1:]]
+    if "--restore" in args:
+        if os.path.isfile(PRISTINE):
+            shutil.copy(PRISTINE, BASE)
+            print(f"restored upstream base from {PRISTINE}")
+        else:
+            print(f"no {PRISTINE} to restore from", file=sys.stderr)
+            return 1
+        return 0
+
+    path = args[0] if args else open(WALL).read().strip()
+    if not os.path.isfile(path):
+        print(f"end4-termscheme: no such wallpaper: {path}", file=sys.stderr)
+        return 1
+
+    # Keep one copy of whatever upstream shipped, before the first overwrite.
+    if not os.path.isfile(PRISTINE) and os.path.isfile(BASE):
+        shutil.copy(BASE, PRISTINE)
+
+    scheme = build(path)
+    if scheme is None:
+        return 1
+    tmp = BASE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(scheme, f, indent=4)
+        f.write("\n")
+    os.replace(tmp, BASE)
+
+    hs = sorted(round(hex_to_hsv(scheme["dark"][s])[0] * 360) for s in SLOTS)
+    print(f"{os.path.basename(path)} -> hues {hs}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

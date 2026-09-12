@@ -533,6 +533,60 @@ template already overrides is a stretch upstream took for starship's sake.
 > o = load_config("/home/x/.config/kitty/kitty.conf"); print(o.url_color)'
 > ```
 
+### The palette does not change when the wallpaper does
+
+This is the one that took all day, and `harmony` is not the answer to it.
+
+**end-4 reduces the entire wallpaper to one number.** `generate_colors_material.py`
+scores the image down to a single `primary_paletteKeyColor`, then builds all 16
+terminal slots by rotating a fixed gruvbox base toward that one hue. Every other
+colour in the image is discarded before the terminal palette is touched.
+
+Measured on the Titan, swapping an all-blue arctic wallpaper for `Dracula_waves`
+— which contains cyan 200, violet 247 and magenta 311:
+
+| | generated hues |
+|---|---|
+| arctic | 57, 104, 161, 191, 298, 330 |
+| dracula | 20, **104**, 164, 196, 313, 337 |
+
+Two unrelated images, nearly the same palette. So:
+
+- **low `harmony`** → the palette keeps gruvbox's hues and ignores the wallpaper
+- **high `harmony`** → every slot converges on the one accent hue, monochrome
+
+There is no value that gives colours *from the image*, because the image's
+colours never arrive. Raising or lowering `harmony` only trades one wrong answer
+for the other, which is why every adjustment felt like it fixed nothing.
+
+[`end4-termscheme`](../scripts/end4-termscheme) fills `scheme-base.json` with the
+image's real dominant colours (k-means, 200×200, hue families 25° apart, greys
+dropped), and end-4's generator then runs on top unchanged. Step 21 hooks it into
+`switchwall.sh` so it fires on every wallpaper change.
+
+```
+Code_Garden_transit.jpg -> hues [46, 71, 120, 138, 201, 214]
+color1 #B7CA66   color2 #60E0B5   color3 #7FF397
+color4 #579ED7   color5 #3F79CA   color6 #61E0BF
+```
+
+Two things it has to get right, both learned the hard way:
+
+- **Build the base dark.** Saturation ~0.85, value ~0.66, i.e. gruvbox's own
+  range. end-4 then applies `boost_chroma_tone(_, 1, 1 + term_fg_boost)` — +35%
+  tone — so a base built at value 0.86 comes out near-white and the slot is
+  unreadable.
+- **Interpolate, do not duplicate.** When an image yields fewer than six hue
+  families, bisect the widest gap instead of repeating hues. Duplicates make two
+  ansi slots identical and anything that colour-codes by slot stops being
+  readable.
+
+> This supersedes `wallbash-kitty.sh`, and vindicates why it was written. The
+> repo previously claimed wallbash was "no longer needed" because `harmony` had
+> solved the problem. It had not — it made the palette colourful, not
+> wallpaper-derived. The difference is only visible if you change the wallpaper
+> and measure.
+
 ### A single-hue `scheme-base.json` beats any harmony value
 
 On 2026-09-11 the Titan's `scheme-base.json` had been replaced by a blue ramp:
@@ -548,9 +602,10 @@ python3 scripts/scheme-hue-span.py ~/.config/quickshell/ii/scripts/colors/termin
 # gruvbox (upstream): 210    ·    the ramp: 3
 ```
 
-Step 20 warns below 60. What wrote the file is not known: it changed alone, at
-16:15, and nothing else in the quickshell tree moved that day, so it was not
-`./setup install`.
+Step 20 warns below 60. What wrote it was never identified, but its values were close to that
+wallpaper's dominant colours, so it was almost certainly an earlier attempt at
+what `end4-termscheme` now does properly. On an all-blue image, a faithful base
+*is* single-hue — which is why the result looked like a bug and was not one.
 
 ### Never run `switchwall.sh` over ssh without the venv
 
@@ -580,6 +635,35 @@ grep -c '\$term' ~/.local/state/quickshell/user/generated/terminal/kitty-theme.c
 The `kde-material-you-colors` / `plasma-apply-colorscheme` errors at the end of
 every run are unrelated noise: a matugen post-hook for a Plasma that isn't
 installed. The colors are already written by then.
+
+---
+
+## `scp` fails: "Received message too long"
+
+```
+scp: Received message too long 1178686529
+scp: Ensure the remote shell produces no output for non-interactive sessions.
+```
+
+scp and rsync tunnel a binary protocol over the remote shell, so **any** stray
+byte it prints corrupts the stream. On these machines the culprit is HyDE's
+`~/.zshenv`, which chains into its own tree unguarded:
+
+```zsh
+if ! source $ZDOTDIR/.zshenv; then
+    echo "FATAL Error: Could not source $ZDOTDIR/.zshenv"
+    return 1
+fi
+```
+
+On a machine without HyDE's zsh tree that file does not exist, so every
+non-interactive shell emits the FATAL line. `ssh` tolerates it — you just see the
+noise — which is why it can sit there for weeks before a transfer fails. Step 21
+guards the source. Check with:
+
+```bash
+ssh host 'echo ok'      # must print exactly "ok"
+```
 
 ---
 

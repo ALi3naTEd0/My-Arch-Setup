@@ -885,6 +885,80 @@ if span < 60:
 PYEOF
 fi
 
+echo "== 21. Terminal palette from the wallpaper's own colours =="
+# Step 18 (harmony) makes the six ansi hues distinguishable, but they are still
+# GRUVBOX's hues, barely tinted -- they are not the wallpaper's. end-4 reduces
+# the whole image to one number, primary_paletteKeyColor, and rotates a fixed
+# base toward that single hue. The image's other hues never enter the maths.
+#
+# Measured on the Titan, 2026-09-11: swapping an all-blue arctic wallpaper for
+# Dracula_waves (cyan 200, violet 247, magenta 311) moved the generated hues
+# from [57,104,161,191,298,330] to [20,104,164,196,313,337]. Almost nothing.
+# Low harmony ignores the wallpaper; high harmony collapses to one hue. No value
+# gives "colours from the background", because the colours never arrive.
+#
+# end4-termscheme fills scheme-base.json with the image's real dominant colours,
+# then end-4's generator runs on top unchanged -- no second pipeline, which is
+# what made wallbash-kitty.sh fight the built-in one over include order and
+# sequences.txt.
+if [ ! -x "$HOME/.local/bin/end4-termscheme" ]; then
+    echo "   [AVISO] ~/.local/bin/end4-termscheme missing: copy it from the repo"
+else
+    echo "   [ok] end4-termscheme present"
+fi
+
+# The hook lives in switchwall.sh, an end-4 file, so `./setup install` drops it.
+SWF="$C/quickshell/ii/scripts/colors/switchwall.sh"
+if [ ! -f "$SWF" ]; then
+    echo "   [skip] switchwall.sh missing"
+elif grep -q 'end4-termscheme' "$SWF"; then
+    echo "   [skip] hook already in switchwall.sh"
+else
+    python3 - "$SWF" <<'PYEOF'
+import shutil, sys
+p = sys.argv[1]
+s = open(p).read()
+anchor = '    matugen "${matugen_args[@]}"'
+if anchor not in s:
+    print("   [FAIL] matugen call not found - hook by hand"); raise SystemExit
+block = '''    # Rebuild the terminal base from THIS wallpaper's own dominant colours
+    # before generating. Without it the 16 slots are gruvbox rotated toward a
+    # single accent, so they barely move when the wallpaper changes.
+    # Failure here is not fatal: the previous base is left in place.
+    if [ -x "$HOME/.local/bin/end4-termscheme" ] && [ -n "${imgpath:-}" ]; then
+        "$HOME/.local/bin/end4-termscheme" "$imgpath" >/dev/null 2>&1 || true
+    fi
+
+''' + anchor
+shutil.copy(p, p + ".pre-termscheme")
+open(p, "w").write(s.replace(anchor, block, 1))
+print("   [ok] hooked into switchwall.sh (backup .pre-termscheme)")
+PYEOF
+fi
+
+# ~/.zshenv from HyDE sources $ZDOTDIR/.zshenv unguarded and echoes FATAL when
+# it is absent -- which is the case on any machine without HyDE's zsh tree. That
+# line goes out on EVERY non-interactive shell, and scp and rsync both require
+# the remote shell to stay silent: they fail with "Received message too long".
+ZE="$HOME/.zshenv"
+if [ -f "$ZE" ] && grep -q 'FATAL Error: Could not source' "$ZE" \
+   && [ ! -r "${ZDOTDIR:-$C/zsh}/.zshenv" ]; then
+    cp "$ZE" "$ZE.bak-fatal"
+    python3 - "$ZE" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+new = re.sub(
+    r'if ! source \$ZDOTDIR/\.zshenv; then\n\s*echo "FATAL Error: Could not source \$ZDOTDIR/\.zshenv"\n\s*return 1\nfi',
+    'if [ -r "$ZDOTDIR/.zshenv" ]; then\n    source "$ZDOTDIR/.zshenv"\nfi', s, count=1)
+if new == s:
+    print("   [AVISO] could not rewrite ~/.zshenv - check by hand")
+else:
+    open(p, "w").write(new)
+    print("   [ok] ~/.zshenv no longer breaks scp (backup .bak-fatal)")
+PYEOF
+fi
+
 echo
 echo "== Reminders =="
 echo "  - Binds in custom/keybinds.lua are ONLY loaded when Hyprland STARTS."
