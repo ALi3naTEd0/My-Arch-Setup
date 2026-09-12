@@ -95,18 +95,24 @@ def build(path):
               "alone", file=sys.stderr)
         return None
 
-    # Fewer families than slots: fill by bisecting the widest gap between the
-    # hues we did find, rather than repeating them. Duplicates make two ansi
-    # slots identical, and things that colour-code by slot (diffs, ls, grep
-    # matches) stop being distinguishable -- the exact complaint that started
-    # this. Interpolating stays inside the image's own hue range.
-    hues = [t[2] for t in picked]
+    # Fewer families than slots: fill in, but ONLY inside the arc the image
+    # actually occupies. Duplicating would make two ansi slots identical and
+    # anything that colour-codes by slot unreadable; bisecting the widest gap
+    # around the whole circle is worse still -- on an all-blue wallpaper the
+    # widest gap IS the empty 340 degrees, so it invents orange and magenta that
+    # are nowhere in the image. That regression shipped for ten minutes.
+    #
+    # A single-hue image therefore yields six near-identical hues, and that is
+    # correct: a faithful palette for a monochrome picture is monochrome.
+    hues = sorted(t[2] for t in picked)
+    if len(hues) == 1:
+        hues = [(hues[0] + d) % 360 for d in (-12, -7, -2, 3, 8, 13)][:len(SLOTS)]
     while len(hues) < len(SLOTS):
-        ring = sorted(hues)
-        gaps = [((ring[(i+1) % len(ring)] - ring[i]) % 360, i) for i in range(len(ring))]
+        # widest gap BETWEEN consecutive found hues; the wrap-around is skipped
+        gaps = [(hues[i+1] - hues[i], i) for i in range(len(hues) - 1)]
         width, i = max(gaps)
-        hues.append((ring[i] + width / 2) % 360)
-    hues = sorted(hues)
+        hues.append(hues[i] + width / 2)
+        hues.sort()
 
     dark, light = {}, {}
     for slot, hue in zip(SLOTS, hues):

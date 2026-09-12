@@ -576,10 +576,25 @@ Two things it has to get right, both learned the hard way:
   range. end-4 then applies `boost_chroma_tone(_, 1, 1 + term_fg_boost)` — +35%
   tone — so a base built at value 0.86 comes out near-white and the slot is
   unreadable.
-- **Interpolate, do not duplicate.** When an image yields fewer than six hue
-  families, bisect the widest gap instead of repeating hues. Duplicates make two
-  ansi slots identical and anything that colour-codes by slot stops being
-  readable.
+- **Fill in, but only inside the arc the image occupies.** When an image yields
+  fewer than six hue families, bisect the widest gap *between consecutive found
+  hues* — never around the full circle. Duplicating hues makes two ansi slots
+  identical, but bisecting the whole ring is worse: on an all-blue wallpaper the
+  widest gap **is** the empty 340°, so it invents orange and magenta that appear
+  nowhere in the image. That regression shipped here for ten minutes and looked
+  exactly like the original bug.
+
+```
+Eternal_Arctic_firewatch.jpg  ->  [212, 221]                        two blues
+Crimson_Blade_spiderman.jpg   ->  [193, 219, 239, 274, 298, 331]
+Code_Garden_transit.jpg       ->  [46, 71, 120, 138, 202, 216]
+Dracula_waves.png             ->  [202, 217, 246, 267, 308, 323]
+```
+
+**A monochrome wallpaper gives a monochrome palette, and that is the correct
+answer.** The arctic image contains two hues; six colourful slots cannot be
+derived from it without inventing colours. If you want a colourful terminal,
+that is a wallpaper choice, not a setting.
 
 > This supersedes `wallbash-kitty.sh`, and vindicates why it was written. The
 > repo previously claimed wallbash was "no longer needed" because `harmony` had
