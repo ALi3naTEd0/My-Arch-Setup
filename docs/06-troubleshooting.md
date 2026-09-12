@@ -570,7 +570,22 @@ color1 #B7CA66   color2 #60E0B5   color3 #7FF397
 color4 #579ED7   color5 #3F79CA   color6 #61E0BF
 ```
 
-Two things it has to get right, both learned the hard way:
+Three things it has to get right, all learned the hard way:
+
+- **Target a luminance, not an HSV value.** Pinning value made every hue a
+  different brightness, because green contributes 0.72 of relative luminance and
+  blue 0.07 — at value 0.66 a yellow is bright and a blue is nearly black. On the
+  all-blue arctic wallpaper the slots came out at **3.2–4.3:1** against the
+  background, under WCAG's 4.5:1 floor, which is what "why is it so dark" was.
+  Solving for luminance directly puts every hue at 0.145 in the base and
+  **5.5–5.6:1** after end-4's `term_fg_boost` lifts it.
+
+- **Pick families by spread, not by frequency.** Taking the six most-used hue
+  families narrows the palette: with fine families they all sit inside the
+  image's dominant region. Pick greedily by usage but require 40° of separation,
+  relaxing to 25°, 14°, then 0° only when nothing further away is left.
+  `Code_Garden_transit.jpg` goes from `[111, 131, 168, 193, 212, 218]` — six
+  shades of one region — to `[15, 52, 111, 168, 212, 300]`.
 
 - **Build the base dark.** Saturation ~0.85, value ~0.66, i.e. gruvbox's own
   range. end-4 then applies `boost_chroma_tone(_, 1, 1 + term_fg_boost)` — +35%

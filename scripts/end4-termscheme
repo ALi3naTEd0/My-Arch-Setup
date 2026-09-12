@@ -53,10 +53,46 @@ def hsv_to_hex(h, s, v):
     return "#%02X%02X%02X" % (round(r*255), round(g*255), round(b*255))
 
 
-def dominant(path, n=12):
+def luminance(r, g, b):
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
+         for x in (r, g, b)]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+
+def at_luminance(hue, target, sat=0.85):
+    """A colour of this hue whose relative luminance is `target`.
+
+    Pinning HSV *value* was the mistake: at v=0.66 a yellow is bright and a blue
+    is nearly black, because blue contributes 0.07 of luminance and green 0.72.
+    On the all-blue arctic wallpaper that produced slots at 3.2-4.3:1 against the
+    background -- under WCAG's 4.5:1 floor for body text, which is exactly what
+    "why is it so dark" looks like.
+
+    Luminance is what contrast is defined on, so solve for it directly: raise
+    value first, and only give up saturation when the hue cannot reach the
+    target at full value (a saturated blue tops out around 0.09).
+    """
+    for s in (sat, 0.75, 0.65, 0.55, 0.45, 0.35, 0.25):
+        lo, hi = 0.0, 1.0
+        for _ in range(24):
+            mid = (lo + hi) / 2
+            if luminance(*colorsys.hsv_to_rgb(hue, s, mid)) < target:
+                lo = mid
+            else:
+                hi = mid
+        if abs(luminance(*colorsys.hsv_to_rgb(hue, s, hi)) - target) < target * 0.06:
+            return hsv_to_hex(hue, s, hi)
+    return hsv_to_hex(hue, 0.25, 1.0)
+
+
+def dominant(path, n=32):
     """Quantise to n colours. 200x200 is plenty -- k-means looks at the colour
     distribution, not detail -- and it keeps ImageMagick off the OOM killer,
-    which took down a whole session here once."""
+    which took down a whole session here once.
+
+    32 rather than 12: at 12 the quantiser merges neighbouring hues before we
+    ever see them, so a wallpaper with real variety came out with two or three
+    families. The cost is a few milliseconds."""
     out = subprocess.run(
         ["magick", path + "[0]", "-alpha", "off", "-resize", "200x200!",
          "-colors", str(n), "-format", "%c", "histogram:info:-"],
@@ -75,15 +111,42 @@ def pick_hues(cols, want=6):
 
     Greys carry no hue, so letting them through would produce slots that are
     identical to the background -- invisible text.
+
+    Families are 14 degrees wide and the image is quantised to 32 colours, so
+    genuinely distinct tints survive as separate slots. Coarser settings (12
+    colours, 25-degree families) collapsed rich wallpapers down to two or three
+    families and threw away most of the image's variety -- which looked like
+    end-4 discarding it, but was this function.
     """
     fams = {}
     for count, hx in sorted(cols, reverse=True):
         h, s, v = hex_to_hsv(hx)
-        if s < 0.12 or v < 0.10:
+        if s < 0.08 or v < 0.08:
             continue
-        key = round(h * 360 / 25)          # 25-degree families
-        fams.setdefault(key, (count, hx, h * 360))
-    picked = sorted(fams.values(), reverse=True)[:want]
+        key = round(h * 360 / 14)          # 14-degree families
+        prev = fams.get(key)
+        if prev is None or count > prev[0]:
+            fams[key] = (count, hx, h * 360)
+
+    # Taking the six most-used families is wrong: fine families mean the top six
+    # all sit inside the image's dominant region, and the palette narrows instead
+    # of widening. Pick greedily by usage but require separation, relaxing the
+    # requirement only when nothing is left far enough away. That keeps the slots
+    # distinguishable without ever leaving the hues the image actually contains.
+    cand = sorted(fams.values(), reverse=True)
+    picked, used = [], set()
+    for sep in (40, 25, 14, 0):
+        for c in cand:
+            if len(picked) >= want:
+                break
+            if c[1] in used:            # without this the relaxing passes
+                continue                # re-add the same family and two slots
+            if all(min(abs(c[2] - p[2]), 360 - abs(c[2] - p[2])) >= sep
+                   for p in picked):
+                picked.append(c)
+                used.add(c[1])
+        if len(picked) >= want:
+            break
     return sorted(picked, key=lambda t: t[2])   # by hue
 
 
@@ -120,12 +183,12 @@ def build(path):
         # colour can be almost black or almost white, and a terminal slot has to
         # be readable on the background regardless of where it came from.
         #
-        # These match gruvbox's own range (sat ~0.85, val ~0.60-0.84) on purpose.
-        # end-4 then applies boost_chroma_tone(_, 1, 1 + term_fg_boost) -- +35%
-        # tone by default -- so a base built at val 0.86 comes out near-white and
-        # the slot is unreadable. Build low; let the boost do the lifting.
-        dark[slot] = hsv_to_hex(hue / 360, 0.85, 0.66)
-        light[slot] = hsv_to_hex(hue / 360, 0.80, 0.62)
+        # Targets are luminances, not HSV values, so every hue lands at the same
+        # perceived lightness. 0.115 in the base becomes roughly L* 72 after
+        # end-4 applies boost_chroma_tone(_, 1, 1 + term_fg_boost) (+35% tone),
+        # which clears 4.5:1 on a near-black background.
+        dark[slot] = at_luminance(hue / 360, 0.145)
+        light[slot] = at_luminance(hue / 360, 0.175)
 
     # term0/7/8/15 are the anchors; end-4 overrides 0 and 15 via --blend_bg_fg.
     mid = sum(h for h in hues) / len(hues) / 360
