@@ -645,7 +645,20 @@ if [ -f "$C/quickshell/ii/scripts/colors/applycolor.sh" ]; then
     fi
 fi
 
+# Steps 18, 20 and 21 are the terminal-colour work, and they are OPT-IN.
+# Restored to end-4's defaults on 2026-09-11 after a long day of churn: the
+# machines now use the shipped gruvbox base, harmony 0.6/100, and the stock
+# kitty template. Set TERMCOLORS=1 to put the whole stack back.
+#
+# What each one does, if you ever want it again:
+#   18  harmony 0.25/30 -- six distinguishable hues, but they are gruvbox's
+#   20  kitty's own UI colours (tab bar, urls, cursor text)
+#   21  end4-termscheme -- the palette actually derived from the wallpaper
+# 18 and 21 are alternatives, not a pair: 21 makes 18 pointless.
 echo "== 18. Terminal palette: keep the six ansi hues apart =="
+if [ "${TERMCOLORS:-0}" != "1" ]; then
+    echo "   [skip] opt-in (TERMCOLORS=1)"
+else
 # This is what "fastfetch only uses two colours" actually was. Not a missing
 # config -- end-4's own defaults.
 #
@@ -713,6 +726,8 @@ if [ -f "$SC" ] && command -v jq >/dev/null; then
         fi
     fi
 else echo "   [skip] no config.json or no jq"; fi
+
+fi
 
 echo "== 19. Atomic writes in the colour scripts (PR #3627) =="
 # Both files belong to end-4, so `./setup install` reverts them every time.
@@ -792,6 +807,9 @@ patch(sw, [
 PYEOF
 
 echo "== 20. kitty's own UI colours (tab bar, urls, cursor text) =="
+if [ "${TERMCOLORS:-0}" != "1" ]; then
+    echo "   [skip] opt-in (TERMCOLORS=1)"
+else
 # end-4's kitty template themes the *cells* -- the 16 ansi slots, background,
 # foreground, selection. It never touches kitty's chrome, so those keep
 # compiled-in constants that no wallpaper can move:
@@ -885,7 +903,12 @@ if span < 60:
 PYEOF
 fi
 
+fi
+
 echo "== 21. Terminal palette from the wallpaper's own colours =="
+if [ "${TERMCOLORS:-0}" != "1" ]; then
+    echo "   [skip] opt-in (TERMCOLORS=1)"
+else
 # Step 18 (harmony) makes the six ansi hues distinguishable, but they are still
 # GRUVBOX's hues, barely tinted -- they are not the wallpaper's. end-4 reduces
 # the whole image to one number, primary_paletteKeyColor, and rotates a fixed
@@ -934,6 +957,8 @@ shutil.copy(p, p + ".pre-termscheme")
 open(p, "w").write(s.replace(anchor, block, 1))
 print("   [ok] hooked into switchwall.sh (backup .pre-termscheme)")
 PYEOF
+fi
+
 fi
 
 # ~/.zshenv from HyDE sources $ZDOTDIR/.zshenv unguarded and echoes FATAL when

@@ -461,6 +461,16 @@ just this one.
 
 ## The terminal palette really is two colors
 
+> **Status, 2026-09-11: all three machines run end-4's stock palette.** The
+> gruvbox base, `harmony 0.6/100`, the untouched kitty template. Everything
+> below is what we learned and how to turn it back on
+> (`TERMCOLORS=1 ~/.local/bin/end4-post-install.sh`), not what is running.
+>
+> It was reverted because chasing "colourful" and "derived from the wallpaper"
+> in the same afternoon produced several rounds of a palette that looked broken
+> in a new way each time. The findings hold; the appetite ran out.
+
+
 Not a leftover, not a missing config — **end-4's shipped defaults**. Worth
 reading before blaming anything else for washed-out terminal colors.
 
