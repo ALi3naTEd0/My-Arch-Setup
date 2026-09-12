@@ -791,6 +791,100 @@ patch(sw, [
 ], marker="material_colors.scss.tmp")
 PYEOF
 
+echo "== 20. kitty's own UI colours (tab bar, urls, cursor text) =="
+# end-4's kitty template themes the *cells* -- the 16 ansi slots, background,
+# foreground, selection. It never touches kitty's chrome, so those keep
+# compiled-in constants that no wallpaper can move:
+#
+#   url_color               #0087BD    every highlighted URL
+#   active_tab_background   #EEEEEE    near-white tab, on a dark bar
+#   inactive_tab_background #999999
+#   cursor_text_color       #111111
+#   mark1_background        #98D3CB
+#
+# That is what "kitty still has colours that aren't the generated ones" was.
+# The template is end-4's file, so `./setup install` drops the addition.
+#
+# Deliberately NOT extended to color16-color231, the 6x6x6 cube: those indices
+# are chosen for the RGB they *are* (bat themes, btop gradients, image
+# previews). Remapping them corrupts output rather than theming it.
+KT="$C/quickshell/ii/scripts/colors/terminal/kitty-theme.conf"
+if [ ! -f "$KT" ]; then
+    echo "   [skip] kitty template missing"
+elif grep -q 'kitty.s own UI' "$KT"; then
+    echo "   [skip] already extended"
+else
+    cp "$KT" "$KT.pre-uicolors"
+    cat >> "$KT" <<'KTEOF'
+
+# --- kitty's own UI, which the block above never touched -------------------
+# Without these kitty falls back to compiled-in constants unrelated to the
+# wallpaper: url_color #0087BD, active_tab_background #EEEEEE,
+# inactive_tab_background #999999, cursor_text_color #111111.
+#
+# Deliberately absent: color16-color231, the 6x6x6 cube. Those indices are
+# computed RGB, not names -- remapping them corrupts output rather than
+# theming it.
+
+url_color               #$primary #
+
+cursor_text_color       #$term0 #
+
+active_tab_background   #$primary #
+active_tab_foreground   #$onPrimary #
+inactive_tab_background #$surfaceContainerHigh #
+inactive_tab_foreground #$onSurfaceVariant #
+tab_bar_background      #$surfaceContainer #
+tab_bar_margin_color    #$surfaceContainer #
+
+mark1_foreground        #$onPrimaryContainer #
+mark1_background        #$primaryContainer #
+mark2_foreground        #$onSecondaryContainer #
+mark2_background        #$secondaryContainer #
+mark3_foreground        #$onTertiaryContainer #
+mark3_background        #$tertiaryContainer #
+
+visual_bell_color       #$errorContainer #
+bell_border_color       #$error #
+KTEOF
+    echo "   [ok] template extended (backup .pre-uicolors)"
+    bash "$C/quickshell/ii/scripts/colors/applycolor.sh" >/dev/null 2>&1 \
+        && echo "   [ok] reapplied" || echo "   [AVISO] applycolor failed"
+fi
+
+# The base scheme decides how many hues there are to begin with; harmony (step
+# 18) only rotates them. On 2026-09-11 the Titan's had been replaced by a
+# single-hue ramp, and no harmony value can recover colour that is not in the
+# input. Cheap sanity check: count distinct leading hex digits of term1..term6.
+SB="$C/quickshell/ii/scripts/colors/terminal/scheme-base.json"
+if [ -f "$SB" ]; then
+    python3 - "$SB" <<'PYEOF'
+import colorsys, json, sys
+# Circular span occupied by term1..term6. Upstream's gruvbox base measures 210
+# degrees; the ramp that replaced it on the Titan measured 3. Counting distinct
+# hex values does not work -- a ramp has six different values in one hue.
+d = json.load(open(sys.argv[1]))["dark"]
+hs = []
+for k in ("term1", "term2", "term3", "term4", "term5", "term6"):
+    h = d[k].lstrip("#")
+    r, g, b = (int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
+    hue, _, s = colorsys.rgb_to_hsv(r, g, b)
+    if s > 0.05:
+        hs.append(hue * 360)
+span = 0
+if len(hs) > 1:
+    hs.sort()
+    gaps = [hs[i+1] - hs[i] for i in range(len(hs) - 1)] + [360 - hs[-1] + hs[0]]
+    span = round(360 - max(gaps))
+if span < 60:
+    print(f"   [AVISO] scheme-base.json spans only {span} degrees of hue.")
+    print( "           Upstream's gruvbox base spans 210. No harmony value can")
+    print( "           put back colour that is not in the input -- the palette")
+    print( "           will stay monochrome. Restore the file from another")
+    print( "           machine or from end-4.")
+PYEOF
+fi
+
 echo
 echo "== Reminders =="
 echo "  - Binds in custom/keybinds.lua are ONLY loaded when Hyprland STARTS."

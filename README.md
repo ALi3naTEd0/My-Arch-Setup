@@ -52,10 +52,11 @@ obvious at first.
 
 | Script | What it does |
 |---|---|
-| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 19 steps that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
+| [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 20 steps that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
 | [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Not in use, and no longer needed.** It existed to work around end-4's monochrome terminal palette, which turned out to be a [setting](docs/06-troubleshooting.md#the-terminal-palette-really-is-two-colors). Kept for reference. |
 | [`end4-update`](scripts/end4-update) | Coloured system update: what is pending per source (repo / AUR / flatpak), then the upgrade. Wired to `apps.update`, so the bar's indicator runs it. |
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
+| [`scheme-hue-span.py`](scripts/scheme-hue-span.py) | Degrees of hue that `scheme-base.json` actually covers. Upstream's gruvbox base: 210. Under 60 means the palette cannot be anything but monochrome. |
 | [`term-hues.py`](scripts/term-hues.py) | Prints what each ansi hue becomes for a given `harmony`/`harmonizeThreshold`. Run with the illogical-impulse venv python. |
 | [`agent-usage-claude`](scripts/agent-usage-claude), [`agent-usage-codex`](scripts/agent-usage-codex) | Print one JSON usage record per AI coding agent. Vendored from Omarchy (MIT); feed the [bar widget](docs/07-bar-widgets.md). |
 

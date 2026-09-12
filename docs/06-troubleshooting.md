@@ -501,6 +501,57 @@ branch of the script, so the bar and launcher do not change.
 ~/.local/state/quickshell/.venv/bin/python scripts/term-hues.py
 ```
 
+### kitty keeps colours the wallpaper never produced
+
+The palette is right and parts of kitty still look wrong — a near-white active
+tab on a dark bar, URLs in a fixed teal, the block cursor's text almost black.
+Those are not palette slots. end-4's template themes the **cells** (`color0-15`,
+background, foreground, selection) and never touches kitty's own chrome, which
+then keeps compiled-in constants:
+
+| option | kitty's default |
+|---|---|
+| `url_color` | `#0087BD` |
+| `active_tab_background` | `#EEEEEE` |
+| `inactive_tab_background` | `#999999` |
+| `cursor_text_color` | `#111111` |
+| `mark1_background` | `#98D3CB` |
+
+Step 20 appends them to the template, mapped to material colours
+(`$primary`, `$surfaceContainer`, `$onSurfaceVariant`…).
+
+**`color16`–`color231` are deliberately left alone.** Those indices get picked
+for the RGB they *are* — bat themes, btop gradients, image previews — so
+remapping them corrupts output instead of theming it. The `232-255` ramp the
+template already overrides is a stretch upstream took for starship's sake.
+
+> Checking this needs the real config file. `load_config()` with no argument
+> returns **compiled-in defaults**, so it happily prints `#0087BD` whatever your
+> config says, and `--debug-config` does not exist in kitty 0.48:
+> ```bash
+> kitty +runpy 'from kitty.config import load_config
+> o = load_config("/home/x/.config/kitty/kitty.conf"); print(o.url_color)'
+> ```
+
+### A single-hue `scheme-base.json` beats any harmony value
+
+On 2026-09-11 the Titan's `scheme-base.json` had been replaced by a blue ramp:
+six entries, one hue. `harmony` only *rotates* the base hues, so with nothing to
+rotate the palette stayed monochrome no matter what step 18 set. The Lenovo's
+copy was untouched and restored it.
+
+Counting distinct hex values does not detect this — a ramp has six different
+values in one hue. Measure the hue span:
+
+```bash
+python3 scripts/scheme-hue-span.py ~/.config/quickshell/ii/scripts/colors/terminal/scheme-base.json
+# gruvbox (upstream): 210    ·    the ramp: 3
+```
+
+Step 20 warns below 60. What wrote the file is not known: it changed alone, at
+16:15, and nothing else in the quickshell tree moved that day, so it was not
+`./setup install`.
+
 ### Never run `switchwall.sh` over ssh without the venv
 
 ```bash
