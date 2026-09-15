@@ -90,6 +90,48 @@ version. Step 3 of the post-install reapplies it.
 
 ---
 
+## The updates indicator vanished from one machine only
+
+Removing the AI usage widget took the updates indicator with it on the Lenovo,
+and not on the Titan. The remover matched with a regex:
+
+```python
+r"[ \t]*Revealer \{\n(?:[^\n]*\n)*?[ \t]*AgentUsageIndicator \{\n..."
+```
+
+`Revealer {` is not unique — every bar indicator is wrapped in one. The pattern
+is non-greedy *after* the opening, but the **regex engine still picks the
+earliest possible start**, so where the updates `Revealer` sits immediately
+above, the match began there and swallowed both blocks. On the Titan the
+intervening structure differed just enough that it started on the right one, so
+the same command produced two different results and neither reported a problem.
+
+Both files are in `~/.config/quickshell/ii/`, which `./setup install`
+overwrites — so this is not the kind of damage an update repairs.
+
+```bash
+grep -c UpdatesIndicator ~/.config/quickshell/ii/modules/ii/bar/BarContent.qml   # want 1
+```
+
+Recover from the backup the remover leaves:
+
+```bash
+cp BarContent.qml.bak-agentusage BarContent.qml
+```
+
+Step 16 now brace-matches instead: find the line declaring
+`AgentUsageIndicator`, walk back to the `Revealer {` that encloses it, walk
+forward counting braces to its close — and **refuse** if the result would drop
+`UpdatesIndicator`. A structural edit to QML wants a brace counter, not a
+pattern; a regex that spans nested blocks has no way to know which block it is
+standing in.
+
+> The indicator also hides itself when there is nothing pending, by design.
+> Check before assuming damage:
+> `{ checkupdates; paru -Qua; } | wc -l`
+
+---
+
 ## `end4-locker: command not found` (and the other scripts too)
 
 `~/.local/bin` was not on PATH on the HP. The file was there and executable; the

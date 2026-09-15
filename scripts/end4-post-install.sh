@@ -619,17 +619,35 @@ done
 [ -d "$HOME/.cache/agent-usage" ] && rm -rf "$HOME/.cache/agent-usage" \
     && echo "   [ok] removed ~/.cache/agent-usage"
 if [ -f "$QS/modules/ii/bar/BarContent.qml" ] && grep -q AgentUsage "$QS/modules/ii/bar/BarContent.qml"; then
+    # Brace-match, do NOT regex. The first attempt matched from any `Revealer {`
+    # non-greedily up to `AgentUsageIndicator {`; where the updates Revealer sits
+    # immediately above, the earliest match starts THERE, so it removed both and
+    # the Lenovo silently lost its updates indicator. Walk back to the enclosing
+    # Revealer, forward to its matching brace, and refuse if the result would
+    # drop UpdatesIndicator.
     python3 - "$QS/modules/ii/bar/BarContent.qml" <<'PYEOF'
-import re, shutil, sys
+import shutil, sys
 p = sys.argv[1]
-s = open(p).read()
-new, n = re.subn(r"[ \t]*Revealer \{\n(?:[^\n]*\n)*?[ \t]*AgentUsageIndicator \{\n[^\n]*\n[^\n]*\n[ \t]*\}\n[ \t]*\}\n", "", s, count=1)
-if n:
-    shutil.copy(p, p + ".bak-agentusage")
-    open(p, "w").write(new)
-    print("   [ok] removed the bar entry (backup .bak-agentusage)")
-else:
-    print("   [WARN] AgentUsage still referenced in BarContent.qml - remove by hand")
+lines = open(p).read().split("\n")
+idx = next((i for i, l in enumerate(lines) if "AgentUsageIndicator {" in l), None)
+if idx is None:
+    print("   [skip] nothing to remove"); raise SystemExit
+start = next(i for i in range(idx, -1, -1) if lines[i].strip() == "Revealer {")
+depth, end = 0, None
+for i in range(start, len(lines)):
+    depth += lines[i].count("{") - lines[i].count("}")
+    if depth == 0:
+        end = i; break
+if end is None:
+    print("   [WARN] unbalanced braces, left alone"); raise SystemExit
+text = "\n".join(lines[:start] + lines[end + 1:])
+if "AgentUsage" in text:
+    print("   [WARN] AgentUsage still referenced, left alone"); raise SystemExit
+if "UpdatesIndicator" in "\n".join(lines) and "UpdatesIndicator" not in text:
+    print("   [WARN] that would take UpdatesIndicator with it, left alone"); raise SystemExit
+shutil.copy(p, p + ".bak-agentusage")
+open(p, "w").write(text)
+print("   [ok] removed the bar entry (backup .bak-agentusage)")
 PYEOF
 else
     echo "   [skip] nothing left to remove"
