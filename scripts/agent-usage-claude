@@ -780,12 +780,47 @@ def limit_window_open(entry: dict[str, Any], now: dt.datetime) -> bool:
   return resets_at > now
 
 
+# How long a window lasts, read off its label. Used only to age out a cached
+# entry that carries no reset time of its own.
+def window_seconds(entry: dict[str, Any]) -> float:
+  text = (str(entry.get("label") or "") + " " + str(entry.get("title") or "")).lower()
+  if "month" in text:
+    return 30 * 86400.0
+  if "week" in text or "7-day" in text or "day" in text:
+    return 7 * 86400.0
+  return 5 * 3600.0        # session, and the conservative default
+
+
 def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
   entries = cached.get("limits")
   if not isinstance(entries, list):
     return []
   now = dt.datetime.now(dt.timezone.utc)
-  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+  # An entry with no reset time was kept forever, on the reasoning that an
+  # unreadable timestamp is no reason to discard a real number. But "no reset
+  # time" is also what a degenerate reading looks like, and one of those --
+  # Session (5-hour) at 0.0% with resetsAt "" -- sat in the cache for five days
+  # and was rendered as the current quota the whole time. Nothing expired it,
+  # because there was nothing to expire.
+  #
+  # So fall back to the age of the cache itself: a five-hour window measured
+  # more than five hours ago cannot describe now, whatever it says.
+  age = float("inf")
+  fetched = cached.get("fetchedAtMs")
+  try:
+    age = max(0.0, now.timestamp() - float(fetched) / 1000.0)
+  except Exception:
+    pass
+  out = []
+  for entry in entries:
+    if not isinstance(entry, dict):
+      continue
+    if not limit_window_open(entry, now):
+      continue
+    if str(entry.get("resetsAt") or "") == "" and age >= window_seconds(entry):
+      continue
+    out.append(entry)
+  return out
 
 
 def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[str, Any]:

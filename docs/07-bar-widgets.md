@@ -130,6 +130,33 @@ print(json.dumps(json.load(urllib.request.urlopen(r)), indent=2))
 PY
 ```
 
+### A stale zero shown as the current quota
+
+The panel read **Session (5-hour) 0.0%** for five days. The number was real once
+and nothing expired it.
+
+When the probe fails the collector falls back to `~/.cache/agent-usage/claude-limits.json`,
+and `limit_window_open` decides what is still valid by comparing `resetsAt`
+against now. An entry with **no** `resetsAt` was kept unconditionally, on the
+reasoning that an unreadable timestamp is no reason to discard a real number.
+
+But "no reset time" is also what a degenerate reading looks like. A
+`Session (5-hour)` entry at `0.0` with `resetsAt: ""` therefore had nothing that
+could ever expire it. Its sibling `Weekly (7-day) 0.79` *did* carry a reset time,
+and was correctly dropped once that passed — so the panel was left showing the
+one entry that should have gone first.
+
+The fix falls back to the age of the cache itself: a five-hour window measured
+more than five hours ago cannot describe now, whatever it claims.
+
+```bash
+python3 -c "import json,datetime as dt;d=json.load(open('$HOME/.cache/agent-usage/claude-limits.json'));print(dt.datetime.fromtimestamp(d['fetchedAtMs']/1000));print(d['limits'])"
+```
+
+With that entry gone the record reports `limits: []` and
+`usageStatusText: "Sign-in expired"`, and the panel says so instead of inventing
+a figure.
+
 ### Quota shows "not available right now"
 
 The access token in `~/.claude/.credentials.json` lasts about 12 hours and is

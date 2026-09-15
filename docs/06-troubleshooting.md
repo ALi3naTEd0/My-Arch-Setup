@@ -113,13 +113,19 @@ Current state:
 |---|---|---|---|
 | Titan | yes | **no** — HDMI TV | no |
 | nomad | yes | yes | no |
-| pavilion | yes | yes | **yes** |
+| pavilion | yes | yes | no |
 
-Only the HP suspends, on purpose: it is the one machine without autologin, and
-the only one you would carry away on battery. Suspending drops a machine off the
-network entirely and Wake-on-LAN over wifi generally does not work, which is why
-the other two only lock — locking keeps Hyprland, quickshell, wayvnc and hypr-rdp
-alive behind the lock surface, so a remote client just sees the lockscreen.
+Locking keeps Hyprland, quickshell, wayvnc and hypr-rdp alive behind the lock
+surface, so a remote client just sees the lockscreen and types the password.
+Suspending drops the machine off the network entirely, and Wake-on-LAN over wifi
+generally does not work — which is why step 3 removes that listener.
+
+> **The HP was meant to keep suspending** — it is the only machine without
+> autologin and the only one carried on battery. It does not: step 3 strips the
+> `timeout = 900` listener **unconditionally**, with no per-machine flag, so
+> running the post-install there removed it. Verified 2026-09-15:
+> `grep -c 'timeout = 900' ~/.config/hypr/hypridle.conf` returns 0 on all three.
+> Deciding whether to add a `KEEP_SUSPEND=1` flag is still open.
 
 ---
 
