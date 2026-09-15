@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Turn the idle lock on and off. "Home mode" is just: off.
+#
+#   end4-locker off      no lock, no screen blanking, until you turn it back on
+#   end4-locker on       back to whatever hypridle.conf says
+#   end4-locker toggle
+#   end4-locker status
+#
+# It stops and starts hypridle rather than editing hypridle.conf, for two
+# reasons: the file belongs to end-4 and `./setup install` rewrites it, and
+# editing it would lose the per-machine tuning that step 3 applies (the Titan
+# has no DPMS listener because its display is a TV over HDMI that does not come
+# back on its own).
+#
+# The choice survives a reboot through a state file that custom/execs.lua reads
+# at session start -- hypridle is launched by end-4's own execs.lua, so nothing
+# else would remember.
+set -uo pipefail
+
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/end4-locker-off"
+
+# hypridle needs HYPRLAND_INSTANCE_SIGNATURE to talk to the compositor. Started
+# from inside the session it inherits it; started over ssh it does not, and the
+# symptom is misleading -- the timer fires correctly and only then every
+# `hyprctl` fails, so the log says "Idled: rule ..." and the screen never locks.
+hypr_env() {
+    [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && return 0
+    local rt="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    local sig
+    sig=$(ls -t "$rt/hypr" 2>/dev/null | while read -r d; do
+              [ -S "$rt/hypr/$d/.socket.sock" ] && echo "$d" && break
+          done)
+    [ -z "$sig" ] && return 1
+    export HYPRLAND_INSTANCE_SIGNATURE="$sig"
+    [ -z "${WAYLAND_DISPLAY:-}" ] && export WAYLAND_DISPLAY="$(ls "$rt" | grep -m1 -E '^wayland-[0-9]+$')"
+    return 0
+}
+
+listeners() {
+    local f="$HOME/.config/hypr/hypridle.conf"
+    [ -f "$f" ] || { echo "sin hypridle.conf"; return; }
+    local out=""
+    grep -q 'timeout = 300' "$f" && out="$out lock@5min"
+    grep -q 'timeout = 600' "$f" && out="$out pantalla@10min"
+    grep -q 'timeout = 900' "$f" && out="$out suspende@15min"
+    echo "${out:-  (ninguno)}"
+}
+
+status() {
+    local running="no" state="ON"
+    pgrep -x hypridle >/dev/null && running="si"
+    [ -f "$STATE" ] && state="OFF"
+    echo "locker      : $state"
+    echo "hypridle    : $running"
+    echo "configurado :$(listeners)"
+    if [ "$state" = "ON" ] && [ "$running" = "no" ]; then
+        echo
+        echo "AVISO: dice ON pero hypridle no corre. 'end4-locker on' lo arranca."
+    fi
+}
+
+case "${1:-status}" in
+    off)
+        touch "$STATE"
+        pkill -x hypridle && echo "hypridle detenido" || echo "hypridle no estaba corriendo"
+        echo "locker OFF (persiste tras reiniciar)"
+        ;;
+    on)
+        rm -f "$STATE"
+        if pgrep -x hypridle >/dev/null; then
+            echo "hypridle ya estaba corriendo"
+        elif hypr_env; then
+            setsid hypridle >/dev/null 2>&1 &
+            sleep 1
+            pgrep -x hypridle >/dev/null && echo "hypridle arrancado" \
+                || echo "FALLO: hypridle no arrancó, revisa 'hypridle' a mano"
+        else
+            echo "FALLO: no encuentro una sesión de Hyprland viva."
+            echo "       Desde ssh solo funciona si la sesión gráfica está abierta."
+        fi
+        echo "locker ON"
+        ;;
+    toggle)
+        if [ -f "$STATE" ]; then exec "$0" on; else exec "$0" off; fi
+        ;;
+    status|"") status ;;
+    *)
+        echo "uso: end4-locker {on|off|toggle|status}" >&2
+        exit 2
+        ;;
+esac

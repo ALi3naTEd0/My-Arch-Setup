@@ -25,6 +25,9 @@ the lessons that were expensive to find.
 | Network | ethernet | wifi | wifi |
 | Keyboard | `es` | `latam` | `latam` |
 | Autologin | yes | yes | no |
+| Idle lock | 5 min | 5 min | 5 min |
+| Screen off | **no** (HDMI TV) | 10 min | 10 min |
+| Suspend | no | no | **yes** (15 min) |
 | SDDM theme | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) |
 | Swap | zram 4G | zram 4G + 16G partition | zram 3.8G |
 
@@ -55,6 +58,7 @@ obvious at first.
 | [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 21 steps (18, 20 and 21 are opt-in via `TERMCOLORS=1`) that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
 | [`end4-termscheme`](scripts/end4-termscheme) | **Opt-in, not installed.** Fills `scheme-base.json` with the wallpaper's own dominant colours, so the palette actually comes from the image. Enable with `TERMCOLORS=1`; the machines run end-4's stock palette. |
 | [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Superseded** by `end4-termscheme`, which does the same k-means extraction without running a second pipeline. Kept for reference. |
+| [`end4-locker`](scripts/end4-locker) | `on` / `off` / `toggle` / `status` for the idle lock. "Home mode" is `off`; it survives a reboot and never edits `hypridle.conf`. |
 | [`end4-update`](scripts/end4-update) | Coloured system update: what is pending per source (repo / AUR / flatpak), then the upgrade. Wired to `apps.update`, so the bar's indicator runs it. |
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
 | [`scheme-hue-span.py`](scripts/scheme-hue-span.py) | Degrees of hue that `scheme-base.json` actually covers. Upstream's gruvbox base: 210. Under 60 means the palette cannot be anything but monochrome. |

@@ -131,6 +131,36 @@ PY
     fi
 else echo "   [skip] no hypridle.conf"; fi
 
+echo "== 3b. end4-locker: switch the idle lock off without editing configs =="
+# hypridle.conf belongs to end-4 and step 3 tunes it per machine (the Titan has
+# no DPMS listener because its display is a TV over HDMI that will not come back
+# on its own). So "home mode" stops the daemon instead of touching the file --
+# nothing to undo, and the per-machine tuning survives.
+if [ ! -x "$HOME/.local/bin/end4-locker" ]; then
+    echo "   [AVISO] ~/.local/bin/end4-locker missing: copy it from the repo"
+else
+    echo "   [ok] end4-locker present"
+fi
+# The choice has to survive a login: end-4 starts hypridle from its own
+# hyprland/execs.lua, so without this "off" quietly expires overnight.
+EX="$C/hypr/custom/execs.lua"
+if [ ! -f "$EX" ]; then
+    echo "   [skip] custom/execs.lua missing"
+elif grep -q 'end4-locker-off' "$EX"; then
+    echo "   [skip] startup rule already present"
+else
+    cat >> "$EX" <<'LUA'
+
+-- Honour `end4-locker off` across restarts. end-4 launches hypridle from its
+-- own hyprland/execs.lua, so without this the lock comes back on every login.
+-- Deliberately NOT the string step 3 removes, so the two do not fight.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("sleep 3; [ -f \"${XDG_STATE_HOME:-$HOME/.local/state}/end4-locker-off\" ] && pkill -x hypridle")
+end)
+LUA
+    echo "   [ok] startup rule added to custom/execs.lua"
+fi
+
 echo "== 4. Cheatsheet shortcut (SUPER+Slash is unreachable on es/latam) =="
 if [ -f "$C/hypr/custom/keybinds.lua" ] && ! grep -q 'cheatsheetToggle' "$C/hypr/custom/keybinds.lua"; then
     cat >> "$C/hypr/custom/keybinds.lua" <<'LUA'

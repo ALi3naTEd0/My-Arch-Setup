@@ -90,6 +90,39 @@ version. Step 3 of the post-install reapplies it.
 
 ---
 
+## Turning the lock off ("home mode")
+
+```bash
+end4-locker off      # no lock, no screen blanking, until you say otherwise
+end4-locker on
+end4-locker status
+```
+
+It stops and starts **hypridle**, and never edits `hypridle.conf`. Two reasons:
+the file belongs to end-4 and `./setup install` rewrites it, and editing it would
+throw away the per-machine tuning step 3 applies — the Titan has no DPMS listener
+at all because its display is a TV over HDMI that does not come back on its own.
+
+`off` writes `~/.local/state/end4-locker-off`, and a rule in
+`custom/execs.lua` checks for it at session start. Without that the lock returns
+at every login and "home mode" expires overnight without saying so.
+
+Current state:
+
+| | lock 5 min | screen off 10 min | suspend 15 min |
+|---|---|---|---|
+| Titan | yes | **no** — HDMI TV | no |
+| nomad | yes | yes | no |
+| pavilion | yes | yes | **yes** |
+
+Only the HP suspends, on purpose: it is the one machine without autologin, and
+the only one you would carry away on battery. Suspending drops a machine off the
+network entirely and Wake-on-LAN over wifi generally does not work, which is why
+the other two only lock — locking keeps Hyprland, quickshell, wayvnc and hypr-rdp
+alive behind the lock surface, so a remote client just sees the lockscreen.
+
+---
+
 ## Screen goes black and nothing brings it back
 
 An external TV over HDMI may not return from DPMS on its own. hypridle's
