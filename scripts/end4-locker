@@ -38,45 +38,45 @@ hypr_env() {
 
 listeners() {
     local f="$HOME/.config/hypr/hypridle.conf"
-    [ -f "$f" ] || { echo "sin hypridle.conf"; return; }
+    [ -f "$f" ] || { echo " no hypridle.conf"; return; }
     local out=""
     grep -q 'timeout = 300' "$f" && out="$out lock@5min"
-    grep -q 'timeout = 600' "$f" && out="$out pantalla@10min"
-    grep -q 'timeout = 900' "$f" && out="$out suspende@15min"
-    echo "${out:-  (ninguno)}"
+    grep -q 'timeout = 600' "$f" && out="$out screen-off@10min"
+    grep -q 'timeout = 900' "$f" && out="$out suspend@15min"
+    echo "${out:-  (none)}"
 }
 
 status() {
     local running="no" state="ON"
-    pgrep -x hypridle >/dev/null && running="si"
+    pgrep -x hypridle >/dev/null && running="yes"
     [ -f "$STATE" ] && state="OFF"
-    echo "locker      : $state"
-    echo "hypridle    : $running"
-    echo "configurado :$(listeners)"
+    echo "locker     : $state"
+    echo "hypridle   : $running"
+    echo "configured :$(listeners)"
     if [ "$state" = "ON" ] && [ "$running" = "no" ]; then
         echo
-        echo "AVISO: dice ON pero hypridle no corre. 'end4-locker on' lo arranca."
+        echo "WARNING: says ON but hypridle is not running. 'end4-locker on' starts it."
     fi
 }
 
 case "${1:-status}" in
     off)
         touch "$STATE"
-        pkill -x hypridle && echo "hypridle detenido" || echo "hypridle no estaba corriendo"
-        echo "locker OFF (persiste tras reiniciar)"
+        pkill -x hypridle && echo "hypridle stopped" || echo "hypridle was not running"
+        echo "locker OFF (persists across reboots)"
         ;;
     on)
         rm -f "$STATE"
         if pgrep -x hypridle >/dev/null; then
-            echo "hypridle ya estaba corriendo"
+            echo "hypridle was already running"
         elif hypr_env; then
             setsid hypridle >/dev/null 2>&1 &
             sleep 1
-            pgrep -x hypridle >/dev/null && echo "hypridle arrancado" \
-                || echo "FALLO: hypridle no arrancó, revisa 'hypridle' a mano"
+            pgrep -x hypridle >/dev/null && echo "hypridle started" \
+                || echo "FAILED: hypridle did not start; try running 'hypridle' by hand"
         else
-            echo "FALLO: no encuentro una sesión de Hyprland viva."
-            echo "       Desde ssh solo funciona si la sesión gráfica está abierta."
+            echo "FAILED: no live Hyprland session found."
+            echo "        Over ssh this only works while the graphical session is up."
         fi
         echo "locker ON"
         ;;
@@ -85,7 +85,7 @@ case "${1:-status}" in
         ;;
     status|"") status ;;
     *)
-        echo "uso: end4-locker {on|off|toggle|status}" >&2
+        echo "usage: end4-locker {on|off|toggle|status}" >&2
         exit 2
         ;;
 esac

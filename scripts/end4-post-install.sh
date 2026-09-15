@@ -137,7 +137,7 @@ echo "== 3b. end4-locker: switch the idle lock off without editing configs =="
 # on its own). So "home mode" stops the daemon instead of touching the file --
 # nothing to undo, and the per-machine tuning survives.
 if [ ! -x "$HOME/.local/bin/end4-locker" ]; then
-    echo "   [AVISO] ~/.local/bin/end4-locker missing: copy it from the repo"
+    echo "   [WARN] ~/.local/bin/end4-locker missing: copy it from the repo"
 else
     echo "   [ok] end4-locker present"
 fi
@@ -389,7 +389,7 @@ else:
     open(p, "w").write(s.replace(old, new, 1))
     print("   [ok] counter now sums repos + AUR")
 PY
-command -v yay >/dev/null || echo "   [WARN] yay is not installed; the AUR count will return 0"
+command -v yay >/dev/null || echo "   [WARN]yay is not installed; the AUR count will return 0"
 
 echo "== 11. Prompt: use end-4's, not HyDE's =="
 # HyDE sources ~/.config/zsh/prompt.zsh and honours what it returns: with
@@ -516,11 +516,11 @@ else:
     print("   [skip] already set")
 PY
 if [ ! -x "$HOME/.local/bin/end4-update" ]; then
-    echo "   [AVISO] ~/.local/bin/end4-update is missing: copy it from the repo"
+    echo "   [WARN] ~/.local/bin/end4-update is missing: copy it from the repo"
     echo "           (scripts/end4-update), or the indicator will do nothing"
 fi
 command -v checkupdates >/dev/null || {
-    echo "   [AVISO] pacman-contrib is not installed, so there is no checkupdates."
+    echo "   [WARN] pacman-contrib is not installed, so there is no checkupdates."
     echo "           end4-update falls back to the AUR helper, which is slower."
     echo "           pacman -S pacman-contrib"; }
 
@@ -576,7 +576,7 @@ if [ ! -x "$HOME/.local/bin/agent-usage-claude" ] && [ ! -x "$HOME/.local/bin/ag
 elif [ -f "$AU" ] && [ -f "$AI_IND" ] && grep -q 'AgentUsageIndicator' "$QS/modules/ii/bar/BarContent.qml" 2>/dev/null; then
     echo "   [skip] already installed"
 else
-    echo "   [AVISO] falta reinstalar los QML: copialos de otra maquina o del repo"
+    echo "   [WARN] QML files need reinstalling: copy them from another machine or the repo"
     echo "           services/AgentUsage.qml, modules/ii/bar/AgentUsage{Indicator,Popup}.qml"
 fi
 
@@ -654,7 +654,7 @@ new = re.sub(
     "    #                  if do_render \"image\"; then fastfetch; fi\n",
     s, count=1)
 if new == s:
-    print("   [AVISO] could not find the fastfetch branch in user.zsh - check by hand")
+    print("   [WARN] could not find the fastfetch branch in user.zsh - check by hand")
 else:
     open(p, "w").write(new)
     print("   [ok] startup banner removed from user.zsh (backup .bak-banner)")
@@ -670,7 +670,7 @@ if [ -f "$C/quickshell/ii/scripts/colors/applycolor.sh" ]; then
     if bash "$C/quickshell/ii/scripts/colors/applycolor.sh" 2>/dev/null; then
         echo "   [ok] palette reapplied"
     else
-        echo "   [AVISO] applycolor.sh failed: no material_colors.scss yet?"
+        echo "   [WARN] applycolor.sh failed: no material_colors.scss yet?"
         echo "           change the wallpaper once and rerun this step"
     fi
 fi
@@ -743,9 +743,9 @@ if [ -f "$SC" ] && command -v jq >/dev/null; then
     export ILLOGICAL_IMPULSE_VIRTUAL_ENV="${ILLOGICAL_IMPULSE_VIRTUAL_ENV:-$HOME/.local/state/quickshell/.venv}"
     WALL=$(cat "$HOME/.local/state/quickshell/user/generated/wallpaper/path.txt" 2>/dev/null || true)
     if [ ! -d "$ILLOGICAL_IMPULSE_VIRTUAL_ENV" ]; then
-        echo "   [AVISO] venv not found, skipping regeneration"
+        echo "   [WARN] venv not found, skipping regeneration"
     elif [ -z "$WALL" ] || [ ! -f "$WALL" ]; then
-        echo "   [AVISO] no current wallpaper, skipping regeneration"
+        echo "   [WARN] no current wallpaper, skipping regeneration"
     else
         bash "$C/quickshell/ii/scripts/colors/switchwall.sh" "$WALL" >/dev/null 2>&1 || true
         if grep -q '\$term' "$HOME/.local/state/quickshell/user/generated/terminal/kitty-theme.conf" 2>/dev/null; then
@@ -897,7 +897,7 @@ bell_border_color       #$error #
 KTEOF
     echo "   [ok] template extended (backup .pre-uicolors)"
     bash "$C/quickshell/ii/scripts/colors/applycolor.sh" >/dev/null 2>&1 \
-        && echo "   [ok] reapplied" || echo "   [AVISO] applycolor failed"
+        && echo "   [ok] reapplied" || echo "   [WARN] applycolor failed"
 fi
 
 # The base scheme decides how many hues there are to begin with; harmony (step
@@ -925,7 +925,7 @@ if len(hs) > 1:
     gaps = [hs[i+1] - hs[i] for i in range(len(hs) - 1)] + [360 - hs[-1] + hs[0]]
     span = round(360 - max(gaps))
 if span < 60:
-    print(f"   [AVISO] scheme-base.json spans only {span} degrees of hue.")
+    print(f"   [WARN] scheme-base.json spans only {span} degrees of hue.")
     print( "           Upstream's gruvbox base spans 210. No harmony value can")
     print( "           put back colour that is not in the input -- the palette")
     print( "           will stay monochrome. Restore the file from another")
@@ -955,7 +955,7 @@ else
 # what made wallbash-kitty.sh fight the built-in one over include order and
 # sequences.txt.
 if [ ! -x "$HOME/.local/bin/end4-termscheme" ]; then
-    echo "   [AVISO] ~/.local/bin/end4-termscheme missing: copy it from the repo"
+    echo "   [WARN] ~/.local/bin/end4-termscheme missing: copy it from the repo"
 else
     echo "   [ok] end4-termscheme present"
 fi
@@ -1007,7 +1007,7 @@ new = re.sub(
     r'if ! source \$ZDOTDIR/\.zshenv; then\n\s*echo "FATAL Error: Could not source \$ZDOTDIR/\.zshenv"\n\s*return 1\nfi',
     'if [ -r "$ZDOTDIR/.zshenv" ]; then\n    source "$ZDOTDIR/.zshenv"\nfi', s, count=1)
 if new == s:
-    print("   [AVISO] could not rewrite ~/.zshenv - check by hand")
+    print("   [WARN] could not rewrite ~/.zshenv - check by hand")
 else:
     open(p, "w").write(new)
     print("   [ok] ~/.zshenv no longer breaks scp (backup .bak-fatal)")
