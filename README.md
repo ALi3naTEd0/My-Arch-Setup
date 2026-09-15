@@ -43,7 +43,7 @@ network. See [remote access](docs/03-remote-access.md).
 3. [Remote access](docs/03-remote-access.md): SSH, VNC, RDP, Tailscale
 4. [Swap and hibernation](docs/04-swap-hibernate.md)
 5. [KVM/QEMU](docs/05-kvm-qemu.md) (optional)
-6. [Bar widgets](docs/07-bar-widgets.md): updates and AI agent usage
+6. [Bar widgets](docs/07-bar-widgets.md): the updates indicator
 
 And when something breaks: [troubleshooting](docs/06-troubleshooting.md), which
 collects the real failures of these three machines — not the causes that looked
@@ -63,7 +63,6 @@ obvious at first.
 | [`harden-ii-sddm.sh`](scripts/harden-ii-sddm.sh) | Fixes the insecure `NOPASSWD` sudoers rule that ii-sddm-theme installs. |
 | [`scheme-hue-span.py`](scripts/scheme-hue-span.py) | Degrees of hue that `scheme-base.json` actually covers. Upstream's gruvbox base: 210. Under 60 means the palette cannot be anything but monochrome. |
 | [`term-hues.py`](scripts/term-hues.py) | Prints what each ansi hue becomes for a given `harmony`/`harmonizeThreshold`. Run with the illogical-impulse venv python. |
-| [`agent-usage-claude`](scripts/agent-usage-claude), [`agent-usage-codex`](scripts/agent-usage-codex) | Print one JSON usage record per AI coding agent. Vendored from Omarchy (MIT); feed the [bar widget](docs/07-bar-widgets.md). |
 
 ```bash
 # After every end-4 `./setup install`:

@@ -1,8 +1,8 @@
 # Bar widgets
 
-Two indicators end-4's `ii` panel family doesn't ship. Both live under
-`~/.config/quickshell/ii/`, which `./setup install` overwrites — steps 9 and 16
-of [`end4-post-install.sh`](../scripts/end4-post-install.sh) put them back.
+One indicator end-4's `ii` panel family doesn't ship. It lives under
+`~/.config/quickshell/ii/`, which `./setup install` overwrites — step 9
+of [`end4-post-install.sh`](../scripts/end4-post-install.sh) puts it back.
 
 Source files are kept in [`quickshell/`](../quickshell) so a fresh machine can
 copy them straight in.
@@ -72,111 +72,43 @@ Two details worth keeping:
 
 ---
 
-## AI agent usage
+## AI agent usage — removed 2026-09-15
 
-Rate-limit and prompt counts for Claude Code and Codex, on hover.
+Rate-limit and prompt counts for Claude Code and Codex, ported from
+[Omarchy](https://github.com/basecamp/omarchy). **The quota half never worked
+here, and it was removed rather than left showing a number nobody could trust.**
+
+The collector probes `https://api.anthropic.com/api/oauth/usage` with the token
+in `~/.claude/.credentials.json`. On this setup that file is not maintained:
 
 ```
-~/.local/bin/agent-usage-claude  ─┐
-~/.local/bin/agent-usage-codex   ─┤→  services/AgentUsage.qml → AgentUsageIndicator.qml
-        (another agent = another file)                        └→ AgentUsagePopup.qml
+token expired  2026-09-09 22:10
+still the same 2026-09-15, after six days of daily use
+probe           HTTP 401
 ```
 
-Each collector prints **one JSON object** and knows nothing about the widget, so
-adding an agent means dropping in another `agent-usage-*` script. That plug-in
-shape is Omarchy's design and it is worth keeping.
+Upstream's design assumes the Claude Code **CLI** refreshes it on every run, and
+that is what I said would happen each time the number looked wrong. It did not.
+Without a live token there is no quota, and the widget could only report prompt
+counts scraped from local transcripts — which is not what it was added for.
 
-### Collectors
+Two things worth keeping from the attempt, because both cost real time:
 
-Vendored from [Omarchy](https://github.com/basecamp/omarchy) (MIT),
-`bin/omarchy-agent-usage-{claude,codex}`. The only change is the cache directory
-(`~/.cache/agent-usage` instead of `~/.cache/omarchy/agent-usage`) so they don't
-pretend to be an Omarchy install. Transcript scanning, the stats-cache
-fallbacks and the OAuth usage probe are upstream's work.
+**A cached limit with no `resetsAt` never expires.** `Session (5-hour) 0.0%` sat
+in `~/.cache/agent-usage/claude-limits.json` for five days and was rendered as
+the current quota the whole time. Its sibling `Weekly (7-day) 0.79` *did* carry
+a reset time and was correctly dropped once it passed — so the panel kept
+exactly the entry that should have gone first. Any cache of windowed
+measurements needs to age out against its own fetch time, not only against a
+timestamp the payload may not contain.
 
-They read local transcripts (`~/.claude/projects`, `~/.codex`) and query the
-provider for quota:
+**`percent` was a 0..1 fraction and the key was `resetsAt`, not `resets_at`.**
+Both were silent: 70% rendered as a plausible "0.7 %", and the reset row just
+never appeared. Neither looked like a bug.
 
-```bash
-~/.local/bin/agent-usage-claude | python3 -m json.tool
-```
+**StyledPopup needs `containsMouse`**, so a `hoverTarget` must be a `MouseArea`
+with `hoverEnabled`, not a plain `Item` — the popup silently never opens. And
+`StyledToolTip` has no `content` property; passing one crashes the shell.
 
-Useful keys: `todayPrompts`, `todayTotalTokens`, `totalPrompts`, `tierLabel`,
-and `limits[] -> {label, percent, resetsAt}`.
-
-### Two traps in the QML
-
-Both were silent — no error, just wrong or missing output:
-
-**`percent` is a 0..1 fraction, not a percentage.** The collector's
-`normalize_utilization` divides by 100, so 70% arrives as `0.70`. Rendering it
-directly gives a plausible-looking "0.7 %", which is the worst kind of bug —
-nothing looks broken. Multiply by 100.
-
-**The key is `resetsAt`, not `resets_at`.** The API returns `resets_at`; the
-collector renames it. Reading the wrong one yields `undefined`, the row hides,
-and it looks like the API just doesn't send a reset time.
-
-Verify against the raw API when a number looks off:
-
-```bash
-python3 - <<'PY'
-import json, os, urllib.request
-c = json.load(open(os.path.expanduser("~/.claude/.credentials.json")))["claudeAiOauth"]
-r = urllib.request.Request("https://api.anthropic.com/api/oauth/usage",
-    headers={"Authorization": "Bearer " + c["accessToken"],
-             "anthropic-beta": "oauth-2025-04-20"})
-print(json.dumps(json.load(urllib.request.urlopen(r)), indent=2))
-PY
-```
-
-### A stale zero shown as the current quota
-
-The panel read **Session (5-hour) 0.0%** for five days. The number was real once
-and nothing expired it.
-
-When the probe fails the collector falls back to `~/.cache/agent-usage/claude-limits.json`,
-and `limit_window_open` decides what is still valid by comparing `resetsAt`
-against now. An entry with **no** `resetsAt` was kept unconditionally, on the
-reasoning that an unreadable timestamp is no reason to discard a real number.
-
-But "no reset time" is also what a degenerate reading looks like. A
-`Session (5-hour)` entry at `0.0` with `resetsAt: ""` therefore had nothing that
-could ever expire it. Its sibling `Weekly (7-day) 0.79` *did* carry a reset time,
-and was correctly dropped once that passed — so the panel was left showing the
-one entry that should have gone first.
-
-The fix falls back to the age of the cache itself: a five-hour window measured
-more than five hours ago cannot describe now, whatever it claims.
-
-```bash
-python3 -c "import json,datetime as dt;d=json.load(open('$HOME/.cache/agent-usage/claude-limits.json'));print(dt.datetime.fromtimestamp(d['fetchedAtMs']/1000));print(d['limits'])"
-```
-
-With that entry gone the record reports `limits: []` and
-`usageStatusText: "Sign-in expired"`, and the panel says so instead of inventing
-a figure.
-
-### Quota shows "not available right now"
-
-The access token in `~/.claude/.credentials.json` lasts about 12 hours and is
-minted by the Claude Code CLI. It lapses on its own and is refreshed by normal
-use — nothing needs doing. Upstream words this as *"Sign-in expired"*, which
-misleads: you are still signed in.
-
-There is a `refreshToken` in the file, but the collector does not use it on
-purpose. Refresh tokens are typically rotating, so minting one without storing
-the replacement could invalidate the credential the CLI depends on.
-
-### StyledPopup needs `containsMouse`
-
-```qml
-active: hoverTarget && hoverTarget.containsMouse
-```
-
-The `hoverTarget` root must therefore be a **`MouseArea` with `hoverEnabled`**,
-not a plain `Item` — an `Item` has no such property and the popup silently never
-opens. Copy `modules/ii/bar/Resources.qml`.
-
-> And `StyledToolTip` has **no `content` property**. Passing one crashes the
-> shell outright. Use `StyledPopup` for anything richer than a text tooltip.
+Step 16 is now a cleanup: it deletes the QML, the collectors and the cache from
+any machine that still carries them.

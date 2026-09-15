@@ -597,59 +597,43 @@ else:
     print("   [ok] concurrency capped at nproc (backup .bak-oom)")
 PY
 
-echo "== 16. AI agent usage indicator =="
-# Collectors live in ~/.local/bin/agent-usage-* and are vendored from Omarchy
-# (MIT). The QML side is ours and follows the UpdatesIndicator pattern, so
-# `./setup install` wipes it like everything else under quickshell/ii.
-AU="$QS/services/AgentUsage.qml"
-AI_IND="$QS/modules/ii/bar/AgentUsageIndicator.qml"
-if [ ! -x "$HOME/.local/bin/agent-usage-claude" ] && [ ! -x "$HOME/.local/bin/agent-usage-codex" ]; then
-    echo "   [skip] no collectors in ~/.local/bin/agent-usage-*"
-elif [ -f "$AU" ] && [ -f "$AI_IND" ] && grep -q 'AgentUsageIndicator' "$QS/modules/ii/bar/BarContent.qml" 2>/dev/null; then
-    echo "   [skip] already installed"
-else
-    echo "   [WARN] QML files need reinstalling: copy them from another machine or the repo"
-    echo "           services/AgentUsage.qml, modules/ii/bar/AgentUsage{Indicator,Popup}.qml"
-fi
-
-# Insert into the bar indicator row, right after the updates indicator.
-python3 - "$QS" <<'PYEOF'
-import os, sys
-p = os.path.join(sys.argv[1], "modules/ii/bar/BarContent.qml")
-if not os.path.isfile(p):
-    print("   [skip] BarContent.qml missing"); raise SystemExit
+echo "== 16. AI agent usage indicator (REMOVED) =="
+# Removed 2026-09-15. The quota it existed to show never worked here.
+#
+# The collector reads the OAuth token from ~/.claude/.credentials.json, and on
+# this setup that file is not maintained: it expired 2026-09-09 22:10 and was
+# still the same six days later, through daily use. Upstream's design assumes
+# the Claude Code CLI refreshes it, which is what I kept saying would happen.
+# It did not, so the probe 401s and there is no quota to show -- the widget
+# could only ever report prompt counts it scraped from local transcripts.
+#
+# What is left is cleanup, so a machine that still carries the files loses them.
+QS="$C/quickshell/ii"
+for f in "$QS/services/AgentUsage.qml" \
+         "$QS/modules/ii/bar/AgentUsageIndicator.qml" \
+         "$QS/modules/ii/bar/AgentUsagePopup.qml" \
+         "$HOME/.local/bin/agent-usage-claude" \
+         "$HOME/.local/bin/agent-usage-codex"; do
+    [ -e "$f" ] && rm -f "$f" && echo "   [ok] removed $(basename "$f")"
+done
+[ -d "$HOME/.cache/agent-usage" ] && rm -rf "$HOME/.cache/agent-usage" \
+    && echo "   [ok] removed ~/.cache/agent-usage"
+if [ -f "$QS/modules/ii/bar/BarContent.qml" ] && grep -q AgentUsage "$QS/modules/ii/bar/BarContent.qml"; then
+    python3 - "$QS/modules/ii/bar/BarContent.qml" <<'PYEOF'
+import re, shutil, sys
+p = sys.argv[1]
 s = open(p).read()
-if "AgentUsageIndicator" in s:
-    print("   [skip] already in BarContent.qml"); raise SystemExit
-if not os.path.isfile(os.path.join(sys.argv[1], "modules/ii/bar/AgentUsageIndicator.qml")):
-    print("   [skip] AgentUsageIndicator.qml not present"); raise SystemExit
-anchor = """                        UpdatesIndicator {
-                            id: updatesIndicator
-                            color: rightSidebarButton.colText
-                        }
-                    }
-"""
-block = anchor + """                    Revealer {
-                        reveal: agentUsageIndicator.shouldShow
-                        Layout.fillHeight: true
-                        Layout.rightMargin: reveal ? indicatorsRowLayout.realSpacing : 0
-                        implicitHeight: reveal ? agentUsageIndicator.implicitHeight : 0
-                        implicitWidth: reveal ? agentUsageIndicator.implicitWidth : 0
-                        Behavior on Layout.rightMargin {
-                            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                        }
-                        AgentUsageIndicator {
-                            id: agentUsageIndicator
-                            color: rightSidebarButton.colText
-                        }
-                    }
-"""
-if anchor not in s:
-    print("   [FAIL] UpdatesIndicator block not found - run step 9 first")
+new, n = re.subn(r"[ \t]*Revealer \{\n(?:[^\n]*\n)*?[ \t]*AgentUsageIndicator \{\n[^\n]*\n[^\n]*\n[ \t]*\}\n[ \t]*\}\n", "", s, count=1)
+if n:
+    shutil.copy(p, p + ".bak-agentusage")
+    open(p, "w").write(new)
+    print("   [ok] removed the bar entry (backup .bak-agentusage)")
 else:
-    open(p, "w").write(s.replace(anchor, block, 1))
-    print("   [ok] inserted into BarContent.qml")
+    print("   [WARN] AgentUsage still referenced in BarContent.qml - remove by hand")
 PYEOF
+else
+    echo "   [skip] nothing left to remove"
+fi
 
 echo "== 17. fastfetch: end-4 behaviour, not HyDE's =="
 # end-4 ships NO fastfetch config and prints no banner when a terminal opens.
