@@ -90,6 +90,32 @@ version. Step 3 of the post-install reapplies it.
 
 ---
 
+## `end4-locker: command not found` (and the other scripts too)
+
+`~/.local/bin` was not on PATH on the HP. The file was there and executable; the
+shell simply could not find it by name.
+
+On the Titan and the Lenovo it works because **HyDE's** `conf.d/hyde/env.zsh`
+puts it there — one more piece of HyDE that was quietly load-bearing. A machine
+that never had HyDE never got it, and the failure is silent in a confusing way:
+`end4-update` still worked, because the bar invokes it by absolute path.
+
+```bash
+zsh -ic 'command -v end4-locker'
+```
+
+Step 12b appends it to `.zshrc` when nothing else does. Its guard reads
+**non-comment lines only** — oh-my-zsh's stock `.zshrc` ships
+
+```zsh
+# export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
+```
+
+commented out, and matching that reports "already set" on exactly the kind of
+fresh install that needs the fix.
+
+---
+
 ## Turning the lock off ("home mode")
 
 ```bash

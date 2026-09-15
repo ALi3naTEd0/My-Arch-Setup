@@ -455,6 +455,38 @@ ZRC
     echo "   [ok] ~/.zshrc created"
 fi
 
+echo "== 12b. ~/.local/bin on PATH =="
+# On the machines that came from HyDE this is done by conf.d/hyde/env.zsh --
+# one more thing of HyDE's that was quietly load-bearing. A machine that never
+# had HyDE has every script in ~/.local/bin installed and none of them runnable
+# by name: `end4-locker` came back "command not found" on the HP while the file
+# sat right there, executable. Only end4-update escaped it, because the bar
+# calls it by absolute path.
+for RC in "$HOME/.zshrc" "$C/zsh/.zshrc"; do
+    [ -f "$RC" ] || continue
+    # Non-comment lines only. oh-my-zsh's stock .zshrc ships
+    #   # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
+    # commented out, and matching that reports "already set" on exactly the
+    # kind of fresh install that needs this most.
+    if grep -vE '^\s*#' "$RC" | grep -q 'HOME/.local/bin'; then
+        echo "   [skip] $(basename "$RC") already sets it"
+        continue
+    fi
+    # Skip the HyDE tree: env.zsh already does it, and appending here would put
+    # a second copy in PATH on every shell.
+    if [ -f "$C/zsh/conf.d/hyde/env.zsh" ] && grep -q 'HOME/.local/bin' "$C/zsh/conf.d/hyde/env.zsh"; then
+        echo "   [skip] HyDE's env.zsh already sets it"
+        break
+    fi
+    cat >> "$RC" <<'ZSH'
+
+# ~/.local/bin on PATH. On HyDE machines conf.d/hyde/env.zsh does this; a
+# machine without HyDE has the scripts installed but not runnable by name.
+[[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
+ZSH
+    echo "   [ok] added to $RC"
+done
+
 echo "== 13. Browser: Zen instead of Chrome =="
 V="$C/hypr/custom/variables.lua"
 if [ -f "$V" ] && grep -q '^browser' "$V"; then
