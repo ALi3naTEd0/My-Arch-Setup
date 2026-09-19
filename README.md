@@ -28,7 +28,7 @@ the lessons that were expensive to find.
 | Idle lock | 5 min | 5 min | 5 min |
 | Screen off | **no** (HDMI TV) | 10 min | 10 min |
 | Suspend | no | no | no |
-| Hibernation | **working** | not configured | pending `resume` hook |
+| Hibernation | working | not configured | **working** |
 | SDDM theme | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) |
 | Swap | zram 4G + 17G partition | zram 4G + 16G partition | zram 3.8G + 16G partition |
 

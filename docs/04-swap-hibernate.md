@@ -195,6 +195,12 @@ journalctl --list-boots | tail -3
 
 If a new boot started, it did not resume — whatever the screen showed.
 
+A second, subtler confirmation: after a real resume `/proc/cmdline` shows the
+**hibernated** kernel's command line, not the one used to boot into the image.
+On the HP that meant `resume=` was still absent from `/proc/cmdline` after a
+successful resume, because the kernel that came back had booted before the
+parameter was added. Absent there is evidence *for* a resume, not against it.
+
 > A cold boot after a failed resume is not dangerous here: activating swap
 > rewrites its header, destroying the stale image. The dangerous shape is
 > resuming an image *after* the filesystem has been modified, which needs a
@@ -217,11 +223,19 @@ of these three disks are encrypted, so a 17 G swap partition on the Titan is a
 
 ### Which machine is actually a good candidate
 
-| | RAM | image_size | GPU | verdict |
-|---|---|---|---|---|
-| Titan | 31 GiB | 12.3 GiB | RTX 5060 Ti, **16 GiB VRAM to dump** | works, but took a full afternoon and a CMOS clear |
-| pavilion | 7.5 GiB | 3.0 GiB | Iris Plus G1, nothing to dump | the easy one |
-| nomad | 15 GiB | — | HD 620 | not configured |
+| | RAM | image_size | VRAM dump | total I/O | verdict |
+|---|---|---|---|---|---|
+| Titan | 31 GiB | 12.3 GiB | **16 GiB** | ~28 GiB | works; took an afternoon and a CMOS clear |
+| pavilion | 7.5 GiB | 3.0 GiB | none | ~3 GiB | worked first try |
+| nomad | 15 GiB | — | none | — | not configured |
+
+Roughly **nine times** the data to write and read back on the Titan, which is
+why it is visibly slower — not the RAM size alone, but the VRAM dump the Intel
+machines simply do not have.
+
+> Log timestamps do not measure this. `hibernation entry` → `hibernation exit`
+> spans however long the machine sat powered off, so the Titan's "2m58s" and the
+> HP's "32s" compare nothing. The data volume is the honest number.
 
 The proprietary NVIDIA driver is what makes the Titan hard: a VRAM dump the size
 of the card, three services that must be enabled, and a resume path that fails
