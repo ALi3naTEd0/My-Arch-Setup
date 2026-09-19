@@ -109,6 +109,99 @@ That number goes as `resume_offset=` in the bootloader options, alongside the
 
 ---
 
+## Resume that never resumes
+
+Three separate faults, all found on 2026-09-18, all silent. Work through them in
+order — each hides the next.
+
+### 1. `resume=` in a boot entry that never boots
+
+The Titan's hibernation wrote its image fine and came back to a cold boot. The
+parameter *existed* — in the fallback entry:
+
+```
+[..._linux-fallback.conf]
+options root=UUID=fdda5cbe-… resume=UUID=71a89f67-… …
+```
+
+and that entry was unbootable three ways over: `initrd /boot/intel-ucode.img` on
+an **AMD** machine (and at a path that does not exist inside the ESP),
+`initrd /initramfs-linux-fallback.img` which the preset never generates
+(`PRESETS=('default')`), and a `root=UUID=` matching no partition on the disk.
+The entry that actually boots had no `resume=` at all.
+
+```bash
+# which entries exist, and what each passes
+for f in /boot/loader/entries/*.conf; do echo "[$f]"; grep ^options "$f"; done
+blkid -U <the-uuid-in-resume=>      # must resolve to your swap
+```
+
+> systemd-boot reads only `*.conf`. HyDE leaves `*.conf.hyde.bkp` siblings in
+> that directory; they are inert, not entries.
+
+### 2. The `resume` hook missing from mkinitcpio
+
+Separate machine, separate fault. The HP had no `resume=` **and** no hook:
+
+```
+HOOKS=(… block filesystems fsck)          # no resume
+```
+
+The hook is what reads `resume=` and hands control to the saved image. Without
+it the parameter is inert even when present. It must come after the hook that
+provides the swap device (`block`), and adding it needs `mkinitcpio -P`.
+
+### 3. `resume failed (-5)` — the image is there and unreadable
+
+```
+PM: hibernation: resume from hibernation
+PM: hibernation: resume failed (-5)
+```
+
+`-5` is `EIO`. This is **not** "no image found" — the kernel located the
+signature and failed reading. With no NVMe errors anywhere in the journal, the
+cause was space: the image had been written to a filesystem that could not take
+it.
+
+**On an NVIDIA machine the hibernation image is not the only thing being
+written.** `nvidia-hibernate.service` dumps video memory to
+`NVreg_TemporaryFilePath` (default `/var/tmp`), and it needs **as much free
+space as the card has VRAM** — 16 GiB on the Titan's 5060 Ti. That requirement
+appears in neither the Arch wiki's hibernation page nor NVIDIA's own README, and
+it is what turned a full disk into a failed resume.
+
+```bash
+grep -rhs 'TemporaryFilePath' /etc/modprobe.d/ /usr/lib/modprobe.d/
+systemctl is-enabled nvidia-{suspend,hibernate,resume}.service   # all three
+nvidia-smi --query-gpu=memory.total --format=csv,noheader
+```
+
+Point the dump at a disk with room if the root filesystem is tight:
+
+```
+# /etc/modprobe.d/nvidia-hibernate.conf
+options nvidia NVreg_TemporaryFilePath=/mnt/somewhere-with-space/nvidia-tmp
+```
+
+### Confirming it actually worked
+
+A successful resume leaves **no new boot**. `hibernation exit` appears inside the
+*same* boot session:
+
+```bash
+journalctl -b 0 | grep -E 'hibernation (entry|exit)|resume failed'
+journalctl --list-boots | tail -3
+```
+
+If a new boot started, it did not resume — whatever the screen showed.
+
+> A cold boot after a failed resume is not dangerous here: activating swap
+> rewrites its header, destroying the stale image. The dangerous shape is
+> resuming an image *after* the filesystem has been modified, which needs a
+> second OS or a deliberate `swapoff`; it does not happen in this setup.
+
+---
+
 ## Checking hibernation is viable
 
 ```bash
@@ -118,7 +211,25 @@ free -h                        # swap must exceed used RAM
 ```
 
 Security note: the hibernation image contains **all of RAM in the clear**. On an
-unencrypted disk that includes any keys and passwords that were in memory.
+unencrypted disk that includes any keys and passwords that were in memory. None
+of these three disks are encrypted, so a 17 G swap partition on the Titan is a
+17 G window onto whatever was in memory at hibernation time.
+
+### Which machine is actually a good candidate
+
+| | RAM | image_size | GPU | verdict |
+|---|---|---|---|---|
+| Titan | 31 GiB | 12.3 GiB | RTX 5060 Ti, **16 GiB VRAM to dump** | works, but took a full afternoon and a CMOS clear |
+| pavilion | 7.5 GiB | 3.0 GiB | Iris Plus G1, nothing to dump | the easy one |
+| nomad | 15 GiB | — | HD 620 | not configured |
+
+The proprietary NVIDIA driver is what makes the Titan hard: a VRAM dump the size
+of the card, three services that must be enabled, and a resume path that fails
+opaquely. The Intel machines have none of that.
+
+`systemctl suspend` preserves the session without touching swap, VRAM or
+firmware, and is the right default unless you specifically need power-off
+persistence.
 
 ---
 

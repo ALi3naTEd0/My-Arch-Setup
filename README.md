@@ -27,9 +27,10 @@ the lessons that were expensive to find.
 | Autologin | yes | yes | no |
 | Idle lock | 5 min | 5 min | 5 min |
 | Screen off | **no** (HDMI TV) | 10 min | 10 min |
-| Suspend | no | no | no — see below |
+| Suspend | no | no | no |
+| Hibernation | **working** | not configured | pending `resume` hook |
 | SDDM theme | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) | [ii-sddm](docs/01-base-install.md#sddm-theme--ii-sddm) |
-| Swap | zram 4G | zram 4G + 16G partition | zram 3.8G |
+| Swap | zram 4G + 17G partition | zram 4G + 16G partition | zram 3.8G + 16G partition |
 
 All three are on the same tailnet, so they're reachable by Tailscale IP from any
 network. See [remote access](docs/03-remote-access.md).
