@@ -568,14 +568,21 @@ just this one.
 
 ## The terminal palette really is two colors
 
-> **Status, 2026-09-11: all three machines run end-4's stock palette.** The
-> gruvbox base, `harmony 0.6/100`, the untouched kitty template. Everything
-> below is what we learned and how to turn it back on
-> (`TERMCOLORS=1 ~/.local/bin/end4-post-install.sh`), not what is running.
+> **Status, 2026-09-19: all three machines run the wallpaper-derived palette**
+> (`TERMCOLORS=1`, steps 18/20/21). It was reverted on 09-11 and re-enabled once
+> the extractor's two bugs were fixed — hues invented outside the image's range,
+> and slots too dark to read.
 >
-> It was reverted because chasing "colourful" and "derived from the wallpaper"
-> in the same afternoon produced several rounds of a palette that looked broken
-> in a new way each time. The findings hold; the appetite ran out.
+> What finally settled it: three machines with three unrelated wallpapers were
+> producing near-identical terminals, because the only thing surviving from each
+> image was one accent hue and two of them happened to land 2 degrees apart.
+>
+> ```
+> stock (harmony 0.6/100)          with end4-termscheme
+>   archlinux  166 181 190 202 252 267      85 160 180 214 275 344
+>   nomad      166 179 189 201 249 264     145 159 165 217 274 330
+>   pavilion   189 202 215 278 292 334     219 237 244 260 274 298
+> ```
 
 
 Not a leftover, not a missing config — **end-4's shipped defaults**. Worth

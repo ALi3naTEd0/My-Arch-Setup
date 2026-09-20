@@ -57,7 +57,7 @@ obvious at first.
 | Script | What it does |
 |---|---|
 | [`end4-post-install.sh`](scripts/end4-post-install.sh) | Reapplies the 21 steps (18, 20 and 21 are opt-in via `TERMCOLORS=1`) that end-4's `./setup install` overwrites. **Idempotent**; run after every end-4 update. |
-| [`end4-termscheme`](scripts/end4-termscheme) | **Opt-in, not installed.** Fills `scheme-base.json` with the wallpaper's own dominant colours, so the palette actually comes from the image. Enable with `TERMCOLORS=1`; the machines run end-4's stock palette. |
+| [`end4-termscheme`](scripts/end4-termscheme) | **In use on all three.** Fills `scheme-base.json` with the wallpaper's own dominant colours, so the palette actually comes from the image. Hooked into `switchwall.sh` by step 21 (`TERMCOLORS=1`). |
 | [`wallbash-kitty.sh`](scripts/wallbash-kitty.sh) | **Superseded** by `end4-termscheme`, which does the same k-means extraction without running a second pipeline. Kept for reference. |
 | [`end4-locker`](scripts/end4-locker) | `on` / `off` / `toggle` / `status` for the idle lock. "Home mode" is `off`; it survives a reboot and never edits `hypridle.conf`. |
 | [`end4-update`](scripts/end4-update) | Coloured system update: what is pending per source (repo / AUR / flatpak), then the upgrade. Wired to `apps.update`, so the bar's indicator runs it. |

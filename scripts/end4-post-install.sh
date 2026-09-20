@@ -75,7 +75,7 @@ echo "== 3. Idle: lock and screen-off, but never suspend =="
 # recovers. Internal laptop panels (eDP) wake reliably, so this is per-machine.
 HI="$C/hypr/hypridle.conf"
 if [ "${NO_IDLE:-0}" = "1" ]; then
-    if [ -f "$C/hypr/custom/execs.lua" ] && ! grep -q 'pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
+    if [ -f "$C/hypr/custom/execs.lua" ] && ! grep -q 'sleep 3 && pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
         cat >> "$C/hypr/custom/execs.lua" <<'LUA'
 
 -- NO_IDLE: no dim/lock/suspend at all. end-4 launches hypridle in
@@ -117,7 +117,10 @@ print("   [ok] suspend listener dropped, 5-min lock rewired to $lock_cmd"
 PYEOF
     else echo "   [skip] already adjusted"; fi
     # Undo the old rule if a previous run of this script left it behind.
-    if [ -f "$C/hypr/custom/execs.lua" ] && grep -q 'pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
+    # The NO_IDLE block specifically -- step 3b's locker rule also calls
+    # `pkill -x hypridle`, and matching that made this report [FAIL] on every
+    # run while having nothing to remove.
+    if [ -f "$C/hypr/custom/execs.lua" ] && grep -q 'sleep 3 && pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
         cp "$C/hypr/custom/execs.lua" "$C/hypr/custom/execs.lua.bak"
         python3 - "$C/hypr/custom/execs.lua" <<'PY'
 import re, sys
