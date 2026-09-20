@@ -735,6 +735,13 @@ else
 #
 #     rotation = min(hue_difference * harmony, harmonize_threshold)
 #
+# harmony exists to tie end-4's FOREIGN gruvbox base to the wallpaper. Step 21
+# replaces that base with the image's own colours, at which point rotating again
+# is not just redundant, it undoes the extraction: on 2026-09-19 a yellow pulled
+# from the Lenovo's wallpaper at 79 degrees arrived in the palette at 145, green,
+# and the Titan and the Lenovo converged to within 5 degrees on three of six
+# slots because their accents were 2 degrees apart. Hence 0 here, not 0.25.
+#
 # end-4 ships harmony=0.6 and threshold=100, which is nearly a full collapse.
 # Measured on the Titan against accent #A5C9F8 (hue 255):
 #
@@ -756,15 +763,15 @@ else
 SC="$C/illogical-impulse/config.json"
 if [ -f "$SC" ] && command -v jq >/dev/null; then
     cur=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmony' "$SC")
-    if [ "$cur" = "0.25" ]; then
-        echo "   [skip] harmony already 0.25"
+    if [ "$cur" = "0" ]; then
+        echo "   [skip] harmony already 0"
     else
         cp "$SC" "$SC.bak-harmony"
-        if jq '.appearance.wallpaperTheming.terminalGenerationProps.harmony = 0.25
-             | .appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold = 30' \
+        if jq '.appearance.wallpaperTheming.terminalGenerationProps.harmony = 0
+             | .appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold = 0' \
              "$SC" > "$SC.tmp"; then
             mv "$SC.tmp" "$SC"
-            echo "   [ok] harmony 0.25 / threshold 30 (backup .bak-harmony)"
+            echo "   [ok] harmony 0 / threshold 0 (backup .bak-harmony)"
         else
             rm -f "$SC.tmp"; echo "   [FAIL] jq could not rewrite config.json"
         fi

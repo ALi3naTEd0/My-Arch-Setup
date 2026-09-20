@@ -578,11 +578,38 @@ just this one.
 > image was one accent hue and two of them happened to land 2 degrees apart.
 >
 > ```
-> stock (harmony 0.6/100)          with end4-termscheme
->   archlinux  166 181 190 202 252 267      85 160 180 214 275 344
->   nomad      166 179 189 201 249 264     145 159 165 217 274 330
->   pavilion   189 202 215 278 292 334     219 237 244 260 274 298
+> stock (0.6/100)       termscheme + 0.25    termscheme + harmony 0
+>  166 181 190 202 252 267   85 160 180 214 275 344    14  50 109 165 215 302
+>  166 179 189 201 249 264  145 159 165 217 274 330     5  80 113 137 222 302
+>  189 202 215 278 292 334  219 237 244 260 274 298   212 235 244 265 283 318
 > ```
+
+### `harmony` must be 0 once the base comes from the image
+
+This one cost an extra round. `harmony` exists to tie end-4's **foreign**
+gruvbox base to the wallpaper, by rotating each hue toward the accent. Once
+step 21 fills the base with the image's own colours, rotating again does not
+tie anything — it undoes the extraction.
+
+Measured on the Lenovo at `harmony 0.25`:
+
+```
+extracted from the wallpaper    1   79  117  144  219  300
+arrived in the palette        330  145  159  165  217  274
+```
+
+A yellow pulled from the image at 79° reached the terminal as green at 145°.
+And because the Titan and the Lenovo had accents 2° apart (213 and 211), three
+of six slots converged to within 5° of each other — the exact symptom the
+extractor was meant to cure, reappearing one layer down.
+
+At `harmony 0` the extracted hues arrive intact (14≈15, 109≈111, 302≈300; the
+drift is the tone/chroma boost, not rotation), and warm slots finally exist:
+`color1 #EE693F` orange, `color3 #A39239` yellow.
+
+> The HP stays blue-violet throughout because `Dracula_waves` contains no warm
+> hue at all. A palette with oranges there would mean the extractor was
+> inventing again.
 
 
 Not a leftover, not a missing config — **end-4's shipped defaults**. Worth
