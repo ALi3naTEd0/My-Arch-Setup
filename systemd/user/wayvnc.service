@@ -1,0 +1,19 @@
+[Unit]
+Description=WayVNC remote desktop
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+# -g : codificacion/rutas aceleradas por GPU. Sin esto todo se comprime en CPU
+#      y las animaciones de Hyprland se ven a tirones en remoto.
+# -f : tope de fotogramas; 60 para animaciones fluidas, baja a 30 si la red va justa.
+# -p : contadores de rendimiento al log.
+# -r : dibuja el cursor dentro del stream. Sin esto el cursor NO se ve en remoto:
+#      Hyprland lo pinta en un plano de hardware aparte, que nunca entra en el
+#      buffer que wayvnc captura. No es culpa del cliente VNC ni de la red.
+ExecStart=/usr/bin/wayvnc -g -r -f 60 -p -k es -o HDMI-A-1 0.0.0.0 5900
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

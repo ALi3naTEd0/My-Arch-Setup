@@ -83,15 +83,25 @@ someone signs in** — including VNC and RDP.
 
 ```bash
 sudo mkdir -p /etc/sddm.conf.d
-printf '[Autologin]\nUser=x\nSession=hyprland-uwsm\nRelogin=false\n' \
+printf '[Autologin]\nUser=x\nSession=hyprland\nRelogin=false\n' \
   | sudo tee /etc/sddm.conf.d/zz-autologin.conf
 ```
 
 The `zz-` prefix matters: SDDM reads that directory alphabetically and **the
 last file wins**.
 
-> Verify `uwsm` is installed **before** pointing autologin at `hyprland-uwsm`.
-> If the session doesn't exist, SDDM ends up in a retry loop.
+> Verify the session file exists before pointing autologin at it —
+> `ls /usr/share/wayland-sessions/`. If the name doesn't match, SDDM ends up in a
+> retry loop.
+>
+> **Autologin means there is no greeter to pick a different session from.** A
+> session that fails to start leaves no way in through the screen. Keep the way
+> back ready before changing it; `sshd` is a system unit and survives a broken
+> graphical session:
+>
+> ```bash
+> ssh host 'sudo sed -i "s/^Session=.*/Session=hyprland-uwsm/" /etc/sddm.conf.d/zz-autologin.conf && sudo systemctl reboot'
+> ```
 
 ### Autologin vs. seeing the greeter
 

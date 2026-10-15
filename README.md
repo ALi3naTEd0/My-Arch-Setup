@@ -98,9 +98,14 @@ paru -S uwsm wayvnc rustdesk-bin hypr-rdp matugen fastfetch starship tailscale \
   pacman-contrib
 ```
 
-`uwsm` is an **optional dependency** of Hyprland, so it is never pulled in
-automatically — but without it `graphical-session.target` never activates and no
-user service starts. See [why it matters](docs/06-troubleshooting.md#uwsm).
+`uwsm` was how `graphical-session.target` got activated until **2026-10-14**,
+when all three machines moved to the plain `Hyprland` session on end-4's own
+advice. That target is still what every user service hangs off — VNC, RDP, the
+tray applets — but it is now reached by
+[`systemd/user/hyprland-session.target`](systemd/user/hyprland-session.target),
+started from `custom/execs.lua`. `uwsm` is no longer required; leaving it
+installed does no harm. See
+[running without uwsm](docs/06-troubleshooting.md#running-hyprland-without-uwsm).
 
 `pacman-contrib` provides `checkupdates`, which the bar's updates counter and
 [`end4-update`](scripts/end4-update) both use. It is missing on a clean Arch, and

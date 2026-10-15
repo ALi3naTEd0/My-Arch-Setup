@@ -159,7 +159,7 @@ After=graphical-session.target
 PartOf=graphical-session.target
 
 [Service]
-ExecStart=/usr/bin/wayvnc -g -f 60 -p -k latam -o eDP-1 0.0.0.0 5900
+ExecStart=/usr/bin/wayvnc -g -r -f 60 -p -k latam -o eDP-1 0.0.0.0 5900
 Restart=on-failure
 RestartSec=5
 
@@ -167,14 +167,40 @@ RestartSec=5
 WantedBy=graphical-session.target
 ```
 
-All four flags matter:
+Kept in the repo as [`systemd/user/wayvnc.service`](../systemd/user/wayvnc.service)
+(the Titan's copy: `-k es`, `-o HDMI-A-1`).
+
+Every flag matters:
 
 | Flag | Why |
 |---|---|
 | `-g` | GPU-accelerated encoding. **Without it everything is compressed on the CPU** and the difference is obvious |
+| `-r` | **renders the cursor into the stream.** Without it there is no pointer at all in the remote view |
 | `-f 60` | frame cap; the default leaves animations stuttering |
 | `-k <layout>` | wayvnc translates keysyms with **its own** keymap, not Hyprland's. Without this, ñ doesn't work |
 | `-p` | performance counters in the log |
+
+### No cursor in the remote view
+
+The pointer is simply absent — it moves things, you just cannot see it. It looks
+like a client or network problem and is neither: Hyprland draws the cursor on a
+**separate hardware plane**, which never lands in the buffer wayvnc captures
+through `wlr-screencopy`. Nothing is broken; wayvnc was never told to draw it.
+
+`-r/--render-cursor` composites it into the stream in software. That is the whole
+fix, and it only affects the remote view.
+
+If it were ever not enough, the heavier alternative is forcing Hyprland to stop
+using the hardware plane at all:
+
+```
+cursor {
+    no_hardware_cursors = true
+}
+```
+
+Avoid that unless needed — it also makes the *local* cursor software-rendered,
+which costs smoothness on the machine itself for a purely remote problem.
 
 > `wayvnc` does not authenticate by default. Listening on `0.0.0.0`, anyone on
 > the network reaches the desktop. Acceptable on your own network, not on
@@ -200,14 +226,27 @@ With Tailscale it connects directly by IP, never touching their public relays.
 
 ---
 
-## Everything depends on uwsm
+## Everything depends on graphical-session.target
 
-**All three services hang off `graphical-session.target`**, which only activates
-under uwsm. Without uwsm none of them start.
+**All three services hang off `graphical-session.target`.** If it is not active,
+none of them start — and the failure is silent: no error, the units simply sit
+`inactive`.
 
 ```bash
 systemctl --user is-active graphical-session.target
 ```
+
+**This used to say "which only activates under uwsm", and that stopped being
+true on 2026-10-14**, when all three machines moved to the plain `Hyprland`
+session. Nothing in Hyprland reaches that target by itself, so it is now started
+by [`systemd/user/hyprland-session.target`](../systemd/user/hyprland-session.target),
+which `custom/execs.lua` launches at session start. Full reasoning in
+[troubleshooting](06-troubleshooting.md#running-hyprland-without-uwsm).
+
+The practical consequence is unchanged, only the mechanism moved: **if VNC and
+RDP are dead after a session change, check that target first.** The HP spent a
+while in exactly that state — switched off uwsm, nothing replacing it, every
+remote service down.
 
 And without autologin the machine sits at the login screen: **no graphical
 service exists until someone signs in**. If you plan to power on a machine and

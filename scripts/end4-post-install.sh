@@ -825,9 +825,12 @@ if [ -f "$SC" ] && command -v jq >/dev/null; then
         echo "   [WARN] no current wallpaper, skipping regeneration"
     else
         bash "$C/quickshell/ii/scripts/colors/switchwall.sh" "$WALL" >/dev/null 2>&1 || true
+        # Not a [FAIL]: steps 20 and 21 regenerate the theme again, so what this
+        # sees is an intermediate state. Reporting a failure here is misleading --
+        # on the Titan step 18 said FAIL and step 20 then produced a perfectly
+        # good palette. The real verdict is the final check at the end.
         if grep -q '\$term' "$HOME/.local/state/quickshell/user/generated/terminal/kitty-theme.conf" 2>/dev/null; then
-            echo "   [FAIL] placeholders left in kitty-theme.conf - rerun from a"
-            echo "          graphical session, not over ssh"
+            echo "   [WARN] placeholders after this step; 20/21 will regenerate"
         else
             echo "   [ok] palette regenerated"
         fi
@@ -1092,10 +1095,31 @@ PYEOF
 fi
 
 echo
+echo "== Final check: terminal palette =="
+# The real verdict, after every step that writes the theme has run. Step 18
+# reports an intermediate state and 20/21 regenerate after it, so only this is
+# worth acting on.
+KT="$HOME/.local/state/quickshell/user/generated/terminal/kitty-theme.conf"
+if [ ! -f "$KT" ]; then
+    echo "   [WARN] $KT does not exist"
+elif grep -q '\$' "$KT" 2>/dev/null; then
+    echo "   [FAIL] unresolved placeholders in kitty-theme.conf."
+    echo "          Rerun from a graphical session, not over ssh -- the generator"
+    echo "          needs ILLOGICAL_IMPULSE_VIRTUAL_ENV and a current wallpaper."
+else
+    BAD=$(awk '/^[a-z_0-9]+ +#/ {if ($2 !~ /^#[0-9A-Fa-f]{6}$/) n++} END{print n+0}' "$KT")
+    OKN=$(grep -cE '^[a-z_0-9]+ +#[0-9A-Fa-f]{6}$' "$KT")
+    if [ "$BAD" -gt 0 ]; then echo "   [FAIL] $BAD malformed colour entries"
+    else echo "   [ok] $OKN colour entries, all valid hex"; fi
+fi
+
+echo
 echo "== Reminders =="
 echo "  - Binds in custom/keybinds.lua are ONLY loaded when Hyprland STARTS."
 echo "    'hyprctl reload' does not pick them up: restart the session."
-echo "  - Keep the 'hyprland-uwsm' session in SDDM (not the plain one)."
+echo "  - Session: all three machines now run the plain 'Hyprland' session."
+echo "    graphical-session.target then depends on hyprland-session.target being"
+echo "    started from custom/execs.lua -- see docs/06-troubleshooting.md."
 echo "  - Clean ~/.cache/yay after installing: the build leaves tens of GB."
 echo "  - Two-line prompt: adjust in ~/.config/starship.toml if it bothers you."
 echo "Done."
