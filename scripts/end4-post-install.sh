@@ -188,6 +188,30 @@ if [ -f "$C/kitty/kitty.conf" ] && grep -qE '^shell (fish|zsh)$' "$C/kitty/kitty
     echo "   [ok] kitty -> login shell ($(getent passwd "$USER" | cut -d: -f7)); backup in kitty.conf.end4-bak"
 else echo "   [skip] kitty already uses the login shell (or is not configured)"; fi
 
+echo "== 5b. kitty: stop replaying the last window state =="
+# kitty's remember_window_size defaults to yes: it saves "window-state" into
+# ~/.cache/kitty/main.json every time a window closes and replays it on the next
+# NEW os-window. Maximize one kitty (SUPER+D) and from then on anything that
+# opens its own window -- apps.update, step 11 -- is born maximized and stops
+# tiling. It self-perpetuates, because the state a window dies in is the state
+# it saves.
+#
+# `kitty --start-as=normal` is NOT a fix: measured 1 of 3 launches still came up
+# maximized, since it races the state file instead of removing it. Turning the
+# option off is deterministic -- 5 of 5 normal, including one deliberately
+# maximized before closing. On a tiling WM the geometry is Hyprland's call
+# anyway, so there is nothing worth remembering.
+if [ -f "$C/kitty/kitty.conf" ]; then
+    if grep -qE '^remember_window_size' "$C/kitty/kitty.conf"; then
+        sed -i -E 's/^remember_window_size.*/remember_window_size no/' "$C/kitty/kitty.conf"
+        echo "   [ok] remember_window_size -> no (was already present)"
+    else
+        printf '\n# Never replay the last window state: it leaks a maximized window into\n# every new one and breaks tiling. See step 5b of end4-post-install.sh.\nremember_window_size no\n' >> "$C/kitty/kitty.conf"
+        echo "   [ok] remember_window_size no appended"
+    fi
+    rm -f "$HOME/.cache/kitty/main.json"
+else echo "   [skip] kitty.conf is not there"; fi
+
 QS="$C/quickshell/ii"
 
 echo "== 6. Notification popups expanded (not collapsed to one line) =="
@@ -536,7 +560,16 @@ d = json.load(open(p))
 # end4-update replaces it: a coloured summary per source before anything is
 # touched, then the upgrade. No --hold needed, the script holds itself.
 # UpdatesIndicator runs this through `bash -c`, so ~ expands.
-cmd = 'kitty ~/.local/bin/end4-update'
+#
+# --start-as=normal is load-bearing. Upstream's command uses `kitty -1`, which
+# reuses the running instance; dropping -1 (needed so the script gets its own
+# window instead of a tab) means every launch creates a NEW os-window -- and
+# kitty's `remember_window_size` defaults to yes, so it restores whatever state
+# it last saved in ~/.cache/kitty/main.json. Maximize any kitty window once
+# (SUPER+D) and that file records `"window-state": "maximized"`, after which the
+# updater opens maximized and stops tiling. Measured: fullscreen=1,
+# size 1908x1028 without the flag, fullscreen=0, size 949x1028 with it.
+cmd = 'kitty --start-as=normal ~/.local/bin/end4-update'
 changed = []
 if d.get("apps", {}).get("update") != cmd:
     d.setdefault("apps", {})["update"] = cmd; changed.append("apps.update")

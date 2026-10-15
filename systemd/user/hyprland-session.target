@@ -1,0 +1,24 @@
+[Unit]
+Description=Hyprland session
+Documentation=man:systemd.special(7)
+# graphical-session.target sets RefuseManualStart=yes, so it can only be reached
+# through a dependency. Under uwsm that dependency is
+# wayland-session@hyprland.desktop.target. On the plain "Hyprland" session
+# nothing provides it, and everything with WantedBy=graphical-session.target
+# stays dead -- wayvnc, hypr-rdp, plasma-dolphin, the XDG autostarts.
+#
+# BindsTo + Before is the standard pattern (same as sway-session.target): this
+# target is startable by hand and pulls graphical-session.target up with it.
+BindsTo=graphical-session.target
+Before=graphical-session.target
+Wants=graphical-session-pre.target
+After=graphical-session-pre.target
+
+# graphical-session.target alone is not enough: the XDG autostart units that
+# systemd-xdg-autostart-generator creates hang off xdg-desktop-autostart.target,
+# which uwsm reached through wayland-session-xdg-autostart@hyprland.desktop.target.
+# Without this, Enpass, blueman, nm-applet, kdeconnect, remmina and the alarm
+# clock applet never start -- and the alarm clock applet is what powers the
+# machine off at 05:00.
+Wants=xdg-desktop-autostart.target
+Before=xdg-desktop-autostart.target

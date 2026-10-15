@@ -848,6 +848,241 @@ ssh host 'echo ok'      # must print exactly "ok"
 
 ---
 
+## The updater stops on one AUR package
+
+Symptom: the bar's updater always halts on the same package, so nothing else
+gets upgraded either. On the Titan it was `fsearch`, stuck at `0.3.1-2` while
+both laptops were already on `0.3.2-1`.
+
+```
+==> Starting prepare()...
+Applying patch: 0001-fix_new_window.patch
+Hunk #2 FAILED at 498.
+patching file src/menus.ui
+Reversed (or previously applied) patch detected!  Skipping patch.
+==> ERROR: A failure occurred in prepare().
+```
+
+**The obvious reading is wrong.** That output says "this AUR package is broken",
+and the tempting fix is `IgnorePkg = fsearch` in `pacman.conf`. Don't: it hides a
+real update and freezes the machine on the old version for good.
+
+The actual cause is a **stale paru clone**:
+
+```
+Titan  HEAD : 590f95f  2026-09-21 05:22  chore: update fsearch
+AUR    HEAD : aef88b7  2026-09-21 06:41  0.3.2; drop patch
+                                          0001-fix_new_window.patch | 46 ------
+```
+
+The AUR maintainer shipped a patch that did not apply, then fixed it **79
+minutes later** by deleting the patch. The Titan happened to clone inside that
+window. `pkgver` and `pkgrel` are identical across both commits, so paru sees
+the version it wants, reuses `~/.cache/paru/clone/<pkg>`, and replays the broken
+`prepare()` forever. The laptops only escaped by cloning after the fix.
+
+So the giveaway is comparing machines: if one is stuck and the others upgraded
+the same package fine, suspect the clone, not the package.
+
+```bash
+cd ~/.cache/paru/clone/<pkg>
+git fetch origin && git rev-list --count HEAD..origin/master   # 0 = really up to date
+git pull --ff-only && rm -rf src pkg
+makepkg --nobuild --nodeps --noconfirm                         # prepare() must pass
+```
+
+Then upgrade normally. Nuking the clone (`rm -rf ~/.cache/paru/clone/<pkg>`)
+works too, since paru re-clones.
+
+`IgnorePkg` is still the right tool for a package you genuinely want held back —
+it just was not the problem here. It lives in `[options]` in `/etc/pacman.conf`
+and paru honours it:
+
+```
+IgnorePkg = somepackage
+```
+
+Worth knowing: our [`end4-update`](../scripts/end4-update) counts pending AUR
+packages with `$HELPER -Qua`, which respects `IgnorePkg`, so an ignored package
+drops out of the bar's counter as well as out of the upgrade.
+
+---
+
+## "Open destination folder" does nothing (and every other portal launch)
+
+qBittorrent's *Open destination folder* silently does nothing. No error, no
+window, nothing in its log. The same applies to anything else that asks the
+desktop portal to open a file or folder.
+
+**Everything you would test by hand works**, which is what makes this expensive
+to find. All of these open Dolphin fine:
+
+```bash
+dolphin /some/path
+xdg-open /some/path
+gio open /some/path
+busctl --user call org.freedesktop.FileManager1 /org/freedesktop/FileManager1 \
+    org.freedesktop.FileManager1 ShowItems ass 1 "file:///some/file" ""
+```
+
+They work because your shell has the session environment. qBittorrent does not
+use any of them: it calls `org.freedesktop.portal.OpenURI.OpenFile` with a
+directory **file descriptor**, which is the correct API. Only the portal path is
+broken, and nothing you can run from a terminal exercises it.
+
+**The cause is a startup race.** SDDM's session activates
+`xdg-desktop-portal` over D-Bus seconds before Hyprland exists:
+
+```
+13:01:37  SDDM: uwsm start -e -D Hyprland hyprland.desktop
+13:01:37  uwsm: graphical.target is queued for start, waiting for 60s...
+13:01:38  xdg-desktop-portal[1425]: Choosing gtk.portal ... as a last-resort fallback   (x5)
+13:01:38  xdg-desktop-portal-gtk: cannot open display:  -> FAILURE                      (x5)
+13:01:42  Hyprland starts
+```
+
+The portal caches an environment with `WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP`,
+`QT_QPA_PLATFORM` and `XDG_SESSION_TYPE` all **empty**, and never re-reads it.
+The five "last-resort fallback" lines are the giveaway: it could not tell which
+desktop it was on. Everything it launches for the rest of the session inherits
+that. Dolphin then dies instantly:
+
+```
+dolphin[347562]: could not connect to display
+dolphin[347562]: Could not load the Qt platform plugin "xcb" in ""
+systemd-coredump: Process 347562 (dolphin) dumped core
+```
+
+And the portal still answers `Response 0` — success — because spawning the
+process *did* work. It has no way to know the child aborted 50 ms later.
+
+Note the unit already declares the right ordering:
+
+```
+[Unit]
+PartOf=graphical-session.target
+After=graphical-session.target
+[Service]
+Type=dbus
+BusName=org.freedesktop.portal.Desktop
+```
+
+`After=` only orders **inside a systemd transaction**. D-Bus activation bypasses
+it entirely, so the declaration buys nothing here.
+
+**The fix** is in [`custom/execs.lua`](../hypr/custom/execs.lua) — restart the portal once the
+session has published its environment:
+
+```lua
+hl.on("hyprland.start", function()
+    hl.exec_cmd("sleep 2; systemctl --user restart xdg-desktop-portal.service xdg-desktop-portal-gtk.service")
+end)
+```
+
+Blunt, but reliable: we do not control whoever asks for the portal that early.
+Check it with
+
+```bash
+tr '\0' '\n' < /proc/$(pgrep -f '/usr/lib/xdg-desktop-portal$')/environ | grep -E 'WAYLAND_DISPLAY|XDG_CURRENT_DESKTOP'
+```
+
+Empty values mean the race won and the portal needs restarting.
+
+**How to debug this class of bug:** stop guessing which mechanism an app uses and
+watch the bus while you click:
+
+```bash
+dbus-monitor --session "type='method_call',interface='org.freedesktop.portal.OpenURI'" "type='error'"
+```
+
+That showed the real call in one click, after four wrong hypotheses. Beware of
+testing GUI launches with `timeout cmd | head` — it kills the app before you can
+count windows, and manufactures exactly the "silently does nothing" symptom you
+are chasing.
+
+---
+
+## Running Hyprland without uwsm
+
+end-4's installer ends with, in red, `DO NOT SELECT UWSM`. There is no
+explanation anywhere in the repo — the warning is a bare `printf` in
+`sdata/subcmd-install/3.files.sh:246`, and the only other mention is one line in
+`CONTRIBUTING.md`. The reason is in
+[end-4/dots-hyprland#1597](https://github.com/end-4/dots-hyprland/issues/1597),
+open since 2025-07: under uwsm apps should be launched with `uwsm app --` so they
+land in their own systemd slice, and end-4's keybinds and execs do not do that.
+Asked about maintaining a uwsm branch, end-4 answered *"if we're being real I'm
+just gonna neglect it"*. So it is "unmaintained", not "broken".
+
+**What uwsm was actually doing for us.** Nothing else on this system reaches
+`graphical-session.target` — `wayland-session@hyprland.desktop.target` pulls it,
+and that unit is uwsm's. Neither binary mentions the target at all:
+
+```bash
+strings /usr/bin/Hyprland /usr/bin/start-hyprland | grep -c graphical-session   # 0
+```
+
+Drop uwsm and everything with `WantedBy=graphical-session.target` stays dead:
+`wayvnc` (VNC), `hypr-rdp` (RDP), `plasma-dolphin` (the FileManager1 provider),
+and the XDG autostarts — Enpass, blueman, nm-applet, kdeconnect, remmina and
+**alarm-clock-applet, which is what powers this machine off at 05:00**.
+
+`graphical-session.target` cannot be started by hand:
+
+```
+Operation refused, unit graphical-session.target may be requested by dependency only
+```
+
+It sets `RefuseManualStart=yes`. The fix is a target that pulls it in as a
+dependency — the same pattern as `sway-session.target`:
+
+- [`systemd/user/hyprland-session.target`](../systemd/user/hyprland-session.target)
+- started from [`hypr/custom/execs.lua`](../hypr/custom/execs.lua)
+
+`BindsTo` + `Before` reaches `graphical-session.target`; a separate
+`Wants=xdg-desktop-autostart.target` is needed on top, because the autostart
+units hang off *that* target, which uwsm reached through
+`wayland-session-xdg-autostart@hyprland.desktop.target`. Getting only the first
+one leaves VNC and RDP working while every tray applet stays missing — which is
+exactly how this was found.
+
+Both are no-ops under uwsm, so the files are safe on either session.
+
+**What you lose anyway:** `~/.config/uwsm/env-hyprland.d/*.sh` is sourced only by
+uwsm. Whatever lives there has to move into `env=` in the Lua config. Check what
+survived with `systemctl --user show-environment`.
+
+**What gets better:** `HYPRLAND_NO_SD_VARS=1` lives in one of those uwsm env
+files, so without uwsm it is gone and Hyprland resumes doing its own
+`systemctl --user import-environment` and
+`dbus-update-activation-environment --systemd`. The portal race above narrows
+from four seconds to roughly zero — but **it does not disappear**. Measured:
+
+```
+18:17:02  Started Portal service                      <- first instance
+18:17:02  Hyprland starts
+18:17:04  Stopping/Started Portal service             <- the execs.lua restart
+18:17:04  Started Portal service (Hyprland implementation)
+```
+
+The Hyprland backend appears only after the restart, meaning the first instance
+still came up without `XDG_CURRENT_DESKTOP`. Keep the restart.
+
+**To switch**, this machine autologins, so there is no greeter to pick from:
+
+```bash
+sudo sed -i 's/^Session=hyprland-uwsm$/Session=hyprland/' /etc/sddm.conf.d/zz-autologin.conf
+```
+
+Have the way back ready before rebooting — `sshd` is a system unit and survives a
+broken graphical session:
+
+```bash
+ssh host 'sudo sed -i "s/^Session=hyprland$/Session=hyprland-uwsm/" /etc/sddm.conf.d/zz-autologin.conf && sudo systemctl reboot'
+```
+
+---
+
 ## Miscellaneous
 
 **Hyprland does not carry `WAYLAND_DISPLAY` in its own environ** (it creates the
