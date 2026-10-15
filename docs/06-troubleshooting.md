@@ -1083,6 +1083,53 @@ ssh host 'sudo sed -i "s/^Session=hyprland$/Session=hyprland-uwsm/" /etc/sddm.co
 
 ---
 
+## A keybind works locally but not over VNC/RDP
+
+`SUPER+A` opens the launcher when you sit at the machine, and does nothing — or
+opens the *client's* launcher — when you reach it over VNC. The server looks
+innocent:
+
+```bash
+hyprctl -j binds | python3 -c "import json,sys; [print(b) for b in json.load(sys.stdin) if b['key']=='A']"
+# modmask=64 key=A desc=Shell: Toggle search     <- correct, and loaded
+```
+
+**The compositor on the client side eats it first.** Global keybinds belong to
+whichever Hyprland owns the physical keyboard, so a shortcut that exists on both
+machines never reaches the remote session. Both ends having the same bind is
+precisely what makes it invisible: it *looks* like it worked, on the wrong
+machine.
+
+Fix it in the client, not the server: turn on **keyboard grab** (Remmina:
+`Ctrl+Alt+Enter` / the grab button on the connection toolbar). With the keyboard
+grabbed the local binds are suspended and everything is forwarded. That also
+fixes `SUPER+B`, `SUPER+O` and the workspace keys, which collide the same way.
+
+Worth knowing because step 7 of
+[`end4-post-install.sh`](../scripts/end4-post-install.sh) exists for the
+neighbouring problem — a bare `SUPER` tap is not transmitted over VNC at all,
+which is why the launcher was moved to `SUPER+A` in the first place.
+
+---
+
+## Laptops that should still suspend
+
+Step 3 drops hypridle's 15-minute suspend listener, because suspending takes the
+machine off the network entirely and Wake-on-LAN over wifi generally does not
+work — fatal for a box you reach remotely. On a laptop running on battery that
+reasoning inverts: never suspending drains it with the lid shut.
+
+```bash
+KEEP_SUSPEND=1 KB_LAYOUT=latam TERMCOLORS=1 ~/.local/bin/end4-post-install.sh
+```
+
+The flag keeps the listener while still applying everything else. Without it,
+one listener was reason enough to skip the whole script on that machine — and
+every other fix stayed unapplied for weeks as a result. Note it only *preserves*
+a listener that is there; it does not restore one already removed.
+
+---
+
 ## Miscellaneous
 
 **Hyprland does not carry `WAYLAND_DISPLAY` in its own environ** (it creates the

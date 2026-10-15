@@ -73,6 +73,13 @@ echo "== 3. Idle: lock and screen-off, but never suspend =="
 # Set NO_DPMS=1 where the display is an external TV over HDMI: those often do
 # not come back from DPMS on their own, leaving a black screen that no keypress
 # recovers. Internal laptop panels (eDP) wake reliably, so this is per-machine.
+#
+# Set KEEP_SUSPEND=1 to keep the 15-minute suspend listener. Dropping it is the
+# right default for a desktop you reach remotely, but it is wrong for a laptop
+# on battery: there, never suspending means the battery drains while the lid is
+# shut. The HP is the only machine here that wants it, and until this flag
+# existed it was the reason that machine could not run this script at all --
+# every other fix stayed unapplied because of one listener.
 HI="$C/hypr/hypridle.conf"
 if [ "${NO_IDLE:-0}" = "1" ]; then
     if [ -f "$C/hypr/custom/execs.lua" ] && ! grep -q 'sleep 3 && pkill -x hypridle' "$C/hypr/custom/execs.lua"; then
@@ -89,7 +96,8 @@ LUA
 elif [ -f "$HI" ]; then
     # hypridle.conf belongs to end-4, so `./setup install` restores the suspend
     # listener on every update. This has to run again each time.
-    if grep -q 'timeout = 900' "$HI" || grep -q 'on-timeout = loginctl lock-session' "$HI" \
+    if { [ "${KEEP_SUSPEND:-0}" != "1" ] && grep -q 'timeout = 900' "$HI"; } \
+       || grep -q 'on-timeout = loginctl lock-session' "$HI" \
        || { [ "${NO_DPMS:-0}" = "1" ] && grep -q 'timeout = 600' "$HI"; }; then
         cp "$HI" "$HI.bak"
         python3 - "$HI" <<'PYEOF'
@@ -99,7 +107,9 @@ s = open(p).read()
 orig = s
 # a) Drop the 15-minute suspend listener: suspending takes the machine off the
 #    network entirely, and Wake-on-LAN over wifi generally does not work.
-s = re.sub(r"listener \{\s*\n\s*timeout = 900.*?\n\}\n?", "", s, flags=re.S)
+#    KEEP_SUSPEND=1 keeps it -- a laptop on battery wants to suspend.
+if os.environ.get("KEEP_SUSPEND") != "1":
+    s = re.sub(r"listener \{\s*\n\s*timeout = 900.*?\n\}\n?", "", s, flags=re.S)
 # b) The 5-minute listener ships as `loginctl lock-session`, which is a no-op
 #    here: nothing answers logind's Lock signal, so the timer fires and nothing
 #    locks. $lock_cmd uses the quickshell global, which does work. The symptom
@@ -111,8 +121,10 @@ s = s.replace("    timeout = 300 # 5mins\n    on-timeout = loginctl lock-session
 if os.environ.get("NO_DPMS") == "1":
     s = re.sub(r"listener \{\s*\n\s*timeout = 600.*?\n\}\n?", "", s, flags=re.S)
 open(p, "w").write(s)
-print("   [ok] suspend listener dropped, 5-min lock rewired to $lock_cmd"
-      + (", DPMS listener dropped" if os.environ.get("NO_DPMS") == "1" else "")
+kept = os.environ.get("KEEP_SUSPEND") == "1"
+print(("   [ok] " + ("suspend listener KEPT" if kept else "suspend listener dropped")
+       + ", 5-min lock rewired to $lock_cmd"
+       + (", DPMS listener dropped" if os.environ.get("NO_DPMS") == "1" else ""))
       if s != orig else "   [FAIL] neither pattern matched - check by hand")
 PYEOF
     else echo "   [skip] already adjusted"; fi
